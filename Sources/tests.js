@@ -56,3 +56,4 @@ import './Testing/testAlgorithm';
 import './Testing/testMacro';
 import './Testing/testSerialization';
 import './Testing/testProxy';
+import './Imaging/ImageReslice/test/testImageReslice';
