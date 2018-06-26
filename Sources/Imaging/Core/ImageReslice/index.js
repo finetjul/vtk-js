@@ -3,6 +3,8 @@ import { mat4 } from 'gl-matrix';
 import macro from 'vtk.js/Sources/macro';
 import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
+import { ImageBorderMode, InterpolationMode } from 'vtk.js/Sources/Imaging/Core/AbstractImageInterpolator/Constants';
+import SlabMode from './Constants';
 
 const { vtkErrorMacro, vtkDebugMacro } = macro;
 
@@ -16,16 +18,6 @@ function vtkImageReslice(publicAPI, model) {
 
   let indexMatrix = null;
   let optimizedTransform = null;
-  const InterpolationMode = {
-    VTK_NEAREST_INTERPOLATION: 0,
-    VTK_LINEAR_INTERPOLATION: 1,
-    VTK_CUBIC_INTERPOLATION: 2,
-  };
-  const BorderMode = {
-    VTK_IMAGE_BORDER_CLAMP: 0,
-    VTK_IMAGE_BORDER_REPEAT: 1,
-    VTK_IMAGE_BORDER_MIRROR: 2,
-  };
 
   publicAPI.requestData = (inData, outData) => {
     // implement requestData
@@ -194,11 +186,11 @@ function vtkImageReslice(publicAPI, model) {
   
     // extra scalar info for nearest-neighbor optimization
     let inPtr = inScalars.getData();
-    const inputScalarSize = 1; // inScalars.getDataTypeSize();
+    const inputScalarSize = inScalars.getElementComponentSize(); // inScalars.getDataTypeSize();
     const inputScalarType = inScalars.dataType;
     const inComponents = inScalars.getNumberOfComponents(); // interpolator.GetNumberOfComponents();
     const componentOffset = 0; // interpolator.GetComponentOffset();
-    const borderMode = BorderMode.VTK_IMAGE_BORDER_CLAMP;// interpolator->GetBorderMode();
+    const borderMode = ImageBorderMode.CLAMP;// interpolator->GetBorderMode();
     const inDims = input.getDimensions();
     const inExt = [0, inDims[0] - 1, 0, inDims[1] - 1, 0, inDims[2] - 1]; // interpolator->GetExtent();
     const inInc = [0, 0, 0];
@@ -212,74 +204,71 @@ function vtkImageReslice(publicAPI, model) {
       inPtr += inputScalarSize * componentOffset;
     }
   
-    const interpolationMode = InterpolationMode.VTK_NEAREST_INTERPOLATION;
-    // if (interpolator->IsA("vtkImageInterpolator"))
-    // {
-    //  interpolationMode = interpolator->GetInterpolationMode();
-    // }
+    let interpolationMode = InterpolationMode.NEAREST;
+    if (model.interpolator.isA('vtkImageInterpolator'))
+    {
+      interpolationMode = interpolator.getInterpolationMode();
+    }
   
     const convertScalars = false;
     const rescaleScalars = (model.scalarShift != 0.0 || model.scalarScale != 1.0);
   
     // is nearest neighbor optimization possible?
     let optimizeNearest = 0;
-    if (interpolationMode == InterpolationMode.VTK_NEAREST_INTERPOLATION &&
-        model.borderMode == BorderMode.VTK_IMAGE_BORDER_CLAMP &&
+    if (interpolationMode === InterpolationMode.NEAREST &&
+        model.borderMode === ImageBorderMode.CLAMP &&
         !(optimizedTransform != null || perspective || convertScalars || rescaleScalars) &&
-        inputScalarType == outScalars.dataType &&
-        fullSize == scalars.getNumberOfTuples() &&
-        self->GetBorder() == 1 && nsamples <= 1)
+        inputScalarType === outScalars.dataType &&
+        fullSize === scalars.getNumberOfTuples() &&
+        model.border === 1 && nsamples <= 1)
     {
       optimizeNearest = 1;
     }
   
     // get pixel information
-    int scalarType = outData->GetScalarType();
-    int scalarSize = outData->GetScalarSize();
-    int outComponents = outData->GetNumberOfScalarComponents();
+    const scalarType = outScalars.dataType;
+    const scalarSize = 1; // outScalars.scalarSize;
+    const outComponents = outData.numberOfComponents;
   
     // break matrix into a set of axes plus an origin
     // (this allows us to calculate the transform Incrementally)
-    F xAxis[4], yAxis[4], zAxis[4], origin[4];
-    for (int i = 0; i < 4; i++)
+    const xAxis = [0, 0, 0, 0];
+    const yAxis = [0, 0, 0, 0];
+    const zAxis = [0, 0, 0, 0];
+    const origin = [0, 0, 0, 0];
+    for (let i = 0; i < 4; ++i)
     {
-      xAxis[i] = newmat[i][0];
-      yAxis[i] = newmat[i][1];
-      zAxis[i] = newmat[i][2];
-      origin[i] = newmat[i][3];
+      xAxis[i] = newmat[4 * i + 0];
+      yAxis[i] = newmat[4 * i + 1];
+      zAxis[i] = newmat[4 * i + 2];
+      origin[i] = newmat[4 * i + 3];
     }
   
     // get the input origin and spacing for conversion purposes
-    double temp[3];
-    F inOrigin[3];
-    interpolator->GetOrigin(temp);
-    inOrigin[0] = F(temp[0]);
-    inOrigin[1] = F(temp[1]);
-    inOrigin[2] = F(temp[2]);
-  
-    F inInvSpacing[3];
-    interpolator->GetSpacing(temp);
-    inInvSpacing[0] = F(1.0/temp[0]);
-    inInvSpacing[1] = F(1.0/temp[1]);
-    inInvSpacing[2] = F(1.0/temp[2]);
-  
+    const inOrigin = interpolator.getOrigin();
+    const inSpacing = interpolator.getSpacing();
+    const inInvSpacing = [
+      1.0 / inSpacing[0],
+      1.0 / inSpacing[1],
+      1.0 / inSpacing[2],
+    ];
+
     // allocate an output row of type double
-    F *floatPtr = nullptr;
+    let floatPtr = null;
     if (!optimizeNearest)
     {
-      floatPtr = new F [inComponents*(outExt[1] - outExt[0] + nsamples)];
+      floatPtr = new Float64Array[inComponents * (outExt[1] - outExt[0] + nsamples)];
     }
   
     // set color for area outside of input volume extent
-    void *background;
-    vtkAllocBackgroundPixel(&background,
-        self->GetBackgroundColor(), scalarType, scalarSize, outComponents);
+    // void *background;
+    // vtkAllocBackgroundPixel(&background,
+    //    self->GetBackgroundColor(), scalarType, scalarSize, outComponents);
   
     // get various helper functions
-    bool forceClamping = (interpolationMode > VTK_RESLICE_LINEAR ||
-      (nsamples > 1 && self->GetSlabMode() == VTK_IMAGE_SLAB_SUM));
-    vtkGetConversionFunc(&convertpixels,
-      inputScalarType, scalarType, scalarShift, scalarScale, forceClamping);
+    const forceClamping = (interpolationMode > InterpolationMode.LINEAR ||
+      (nsamples > 1 && model.slabMode == SlabMode.SUM));
+    convertPixels = publicAPI.getConversionFunc(inputScalarType, scalarType, scalarShift, scalarScale, forceClamping);
     vtkGetSetPixelsFunc(&setpixels, scalarType, outComponents);
     vtkGetCompositeFunc(&composite,
       self->GetSlabMode(), self->GetSlabTrapezoidIntegration());
@@ -638,7 +627,54 @@ function vtkImageReslice(publicAPI, model) {
     mat4.copy(indexMatrix, transform);
 
     return indexMatrix;
+  };
+
+  publicAPI.getDataTypeMinMax = (dataType) => {
+    switch (dataType) {
+      case 'Uint8Array':
+        return { min: 0}
+    }
+  };
+  publicAPI.getConversionFunc = ( inputType, dataType, scalarShift, scalarScale, forceClamping) => {
+    if (dataType !== VtkDataTypes.FLOAT && dataType !== VtkDataTypes.DOUBLE && !forceClamping) {
+      const checkMin = (vtkDataArray::GetDataTypeMin(inputType) + scalarShift) * scalarScale;
+      const checkMax = (vtkDataArray::GetDataTypeMax(inputType) + scalarShift) * scalarScale;
+    F outputMin = static_cast<F>(vtkDataArray::GetDataTypeMin(dataType));
+    F outputMax = static_cast<F>(vtkDataArray::GetDataTypeMax(dataType));
+    if (checkMin > checkMax)
+    {
+      F tmp = checkMax;
+      checkMax = checkMin;
+      checkMin = tmp;
+    }
+    forceClamping = (checkMin < outputMin || checkMax > outputMax);
   }
+
+  if (forceClamping && dataType != VTK_FLOAT && dataType != VTK_DOUBLE)
+  {
+    // clamp to the limits of the output type
+    switch (dataType)
+    {
+      vtkTemplateAliasMacro(
+        *conversion = &(vtkImageResliceConversion<F, VTK_TT>::Clamp)
+        );
+      default:
+        *conversion = nullptr;
+    }
+  }
+  else
+  {
+    // clamping is unnecessary, so optimize by skipping the clamp step
+    switch (dataType)
+    {
+      vtkTemplateAliasMacro(
+        *conversion = &(vtkImageResliceConversion<F, VTK_TT>::Convert)
+        );
+      default:
+        *conversion = nullptr;
+    }
+  }
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -664,6 +700,7 @@ const DEFAULT_VALUES = {
   wrap = false,
   mirror = false,
   border = false,
+  interpolator = vtkImageInterpolator.newInstance(),
 };
 
 // ----------------------------------------------------------------------------
