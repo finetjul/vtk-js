@@ -3,7 +3,11 @@ import { mat4 } from 'gl-matrix';
 import macro from 'vtk.js/Sources/macro';
 import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
-import { ImageBorderMode, InterpolationMode } from 'vtk.js/Sources/Imaging/Core/AbstractImageInterpolator/Constants';
+import {
+  ImageBorderMode,
+  InterpolationMode,
+  vtkInterpolationMathRound
+} from 'vtk.js/Sources/Imaging/Core/AbstractImageInterpolator/Constants';
 import SlabMode from './Constants';
 
 const { vtkErrorMacro, vtkDebugMacro } = macro;
@@ -165,10 +169,7 @@ function vtkImageReslice(publicAPI, model) {
     const outScalars = output
       .getPointData()
       .getScalars();
-
-    // void (*convertpixels)(void *&out, const F *in, int numscalars, int n) = nullptr;
-    // void (*setpixels)(void *&out, const void *in, int numscalars, int n) = nullptr;
-    // void (*composite)(F *in, int numscalars, int n) = nullptr;
+    let outPtr = outScalars.getData();
   
     // multiple samples for thick slabs
     let nsamples = Math.min(model.slabNumberOfSlices, 1);
@@ -189,8 +190,8 @@ function vtkImageReslice(publicAPI, model) {
     const inputScalarSize = inScalars.getElementComponentSize(); // inScalars.getDataTypeSize();
     const inputScalarType = inScalars.dataType;
     const inComponents = inScalars.getNumberOfComponents(); // interpolator.GetNumberOfComponents();
-    const componentOffset = 0; // interpolator.GetComponentOffset();
-    const borderMode = ImageBorderMode.CLAMP;// interpolator->GetBorderMode();
+    const componentOffset = interpolator.getComponentOffset();
+    const borderMode = interpolator.getBorderMode();
     const inDims = input.getDimensions();
     const inExt = [0, inDims[0] - 1, 0, inDims[1] - 1, 0, inDims[2] - 1]; // interpolator->GetExtent();
     const inInc = [0, 0, 0];
@@ -201,7 +202,7 @@ function vtkImageReslice(publicAPI, model) {
     const fullSize = inDims[0] * inDims[1] * inDims[2];
     if (componentOffset > 0 && componentOffset + inComponents < inInc[0])
     {
-      inPtr += inputScalarSize * componentOffset;
+      inPtr = inPtr.subarray(inputScalarSize * componentOffset);
     }
   
     let interpolationMode = InterpolationMode.NEAREST;
@@ -210,14 +211,14 @@ function vtkImageReslice(publicAPI, model) {
       interpolationMode = interpolator.getInterpolationMode();
     }
   
-    const convertScalars = false;
+    const convertScalars = null;
     const rescaleScalars = (model.scalarShift != 0.0 || model.scalarScale != 1.0);
   
     // is nearest neighbor optimization possible?
     let optimizeNearest = 0;
     if (interpolationMode === InterpolationMode.NEAREST &&
         model.borderMode === ImageBorderMode.CLAMP &&
-        !(optimizedTransform != null || perspective || convertScalars || rescaleScalars) &&
+        !(optimizedTransform != null || perspective || convertScalars != null || rescaleScalars) &&
         inputScalarType === outScalars.dataType &&
         fullSize === scalars.getNumberOfTuples() &&
         model.border === 1 && nsamples <= 1)
@@ -227,7 +228,7 @@ function vtkImageReslice(publicAPI, model) {
   
     // get pixel information
     const scalarType = outScalars.dataType;
-    const scalarSize = 1; // outScalars.scalarSize;
+    const scalarSize = 1; // outScalars.getElementComponentSize() // outScalars.scalarSize;
     const outComponents = outData.numberOfComponents;
   
     // break matrix into a set of axes plus an origin
@@ -268,170 +269,158 @@ function vtkImageReslice(publicAPI, model) {
     // get various helper functions
     const forceClamping = (interpolationMode > InterpolationMode.LINEAR ||
       (nsamples > 1 && model.slabMode == SlabMode.SUM));
-    convertPixels = publicAPI.getConversionFunc(inputScalarType, scalarType, scalarShift, scalarScale, forceClamping);
-    vtkGetSetPixelsFunc(&setpixels, scalarType, outComponents);
-    vtkGetCompositeFunc(&composite,
-      self->GetSlabMode(), self->GetSlabTrapezoidIntegration());
+    const convertPixels = publicAPI.getConversionFunc(inputScalarType, scalarType, scalarShift, scalarScale, forceClamping);
+    const setpixels = publicAPI.getSetPixelsFunc(scalarType, scalarSize, outComponents, outPtr);
+    const composite = publicAPI.getCompositeFunc(model.slabMode, model.slabTrapezoidIntegration);
   
     // create some variables for when we march through the data
-    int idY = outExt[2] - 1;
-    int idZ = outExt[4] - 1;
-    F inPoint0[4] = { 0.0, 0.0, 0.0, 0.0 };
-    F inPoint1[4] = { 0.0, 0.0, 0.0, 0.0 };
+    let idY = outExt[2] - 1;
+    let idZ = outExt[4] - 1;
+    const inPoint0 = [0.0, 0.0, 0.0, 0.0];
+    const inPoint1 = [0.0, 0.0, 0.0, 0.0];
   
     // create an iterator to march through the data
-    vtkImagePointDataIterator iter(outData, outExt, stencil, self, threadId);
-    char *outPtr0 = static_cast<char *>(iter.GetVoidPointer(outData));
-    for (; !iter.IsAtEnd(); iter.NextSpan())
-    {
-      int span = static_cast<int>(iter.SpanEndId() - iter.GetId());
-      outPtr = outPtr0 + iter.GetId()*scalarSize*outComponents;
+    const iter = vtkImagePointDataIterator.newInstance();
+    iter.initialize(outData, outExt, model.stencil, null);
+    const outPtr0 = iter.GetScalars(outData);
+    for (; !iter.isAtEnd(); iter.nextSpan()) {
+      let span = iter.spanEndId() - iter.getId();
+      outPtr = outPtr0.subarray(iter.getId() * scalarSize * outComponents);
   
-      if (!iter.IsInStencil())
-      {
+      if (!iter.isInStencil()) {
         // clear any regions that are outside the stencil
-        setpixels(outPtr, background, outComponents, span);
-      }
-      else
-      {
+        outPtr = setpixels(outPtr, background, outComponents, span);
+      } else {
         // get output index, and compute position in input image
-        int outIndex[3];
-        iter.GetIndex(outIndex);
+        const outIndex = iter.getIndex();
   
         // if Z index increased, then advance position along Z axis
-        if (outIndex[2] > idZ)
-        {
+        if (outIndex[2] > idZ) {
           idZ = outIndex[2];
-          inPoint0[0] = origin[0] + idZ*zAxis[0];
-          inPoint0[1] = origin[1] + idZ*zAxis[1];
-          inPoint0[2] = origin[2] + idZ*zAxis[2];
-          inPoint0[3] = origin[3] + idZ*zAxis[3];
+          inPoint0[0] = origin[0] + idZ * zAxis[0];
+          inPoint0[1] = origin[1] + idZ * zAxis[1];
+          inPoint0[2] = origin[2] + idZ * zAxis[2];
+          inPoint0[3] = origin[3] + idZ * zAxis[3];
           idY = outExt[2] - 1;
         }
   
         // if Y index increased, then advance position along Y axis
-        if (outIndex[1] > idY)
-        {
+        if (outIndex[1] > idY) {
           idY = outIndex[1];
-          inPoint1[0] = inPoint0[0] + idY*yAxis[0];
-          inPoint1[1] = inPoint0[1] + idY*yAxis[1];
-          inPoint1[2] = inPoint0[2] + idY*yAxis[2];
-          inPoint1[3] = inPoint0[3] + idY*yAxis[3];
+          inPoint1[0] = inPoint0[0] + idY * yAxis[0];
+          inPoint1[1] = inPoint0[1] + idY * yAxis[1];
+          inPoint1[2] = inPoint0[2] + idY * yAxis[2];
+          inPoint1[3] = inPoint0[3] + idY * yAxis[3];
         }
   
         // march through one row of the output image
-        int idXmin = outIndex[0];
-        int idXmax = idXmin + span - 1;
+        let idXmin = outIndex[0];
+        let idXmax = idXmin + span - 1;
   
-        if (!optimizeNearest)
-        {
-          bool wasInBounds = 1;
-          bool isInBounds = 1;
-          int startIdX = idXmin;
-          int idX = idXmin;
-          F *tmpPtr = floatPtr;
+        if (!optimizeNearest) {
+          let wasInBounds = 1;
+          let isInBounds = 1;
+          let startIdX = idXmin;
+          let idX = idXmin;
+          let tmpPtr = floatPtr;
   
-          while (startIdX <= idXmax)
-          {
-            for (; idX <= idXmax && isInBounds == wasInBounds; idX++)
-            {
-              F inPoint2[4];
-              inPoint2[0] = inPoint1[0] + idX*xAxis[0];
-              inPoint2[1] = inPoint1[1] + idX*xAxis[1];
-              inPoint2[2] = inPoint1[2] + idX*xAxis[2];
-              inPoint2[3] = inPoint1[3] + idX*xAxis[3];
+          while (startIdX <= idXmax) {
+            for (; idX <= idXmax && isInBounds === wasInBounds; idX++) {
+              const inPoint2 = [
+                inPoint1[0] + idX * xAxis[0],
+                inPoint1[1] + idX * xAxis[1],
+                inPoint1[2] + idX * xAxis[2],
+                inPoint1[3] + idX * xAxis[3],
+              ];
   
-              F inPoint3[4];
-              F *inPoint = inPoint2;
-              isInBounds = 0;
+              const inPoint3 = [0, 0, 0, 0];
+              let inPoint = inPoint2;
+              isInBounds = false;
   
-              int sampleCount = 0;
-              for (int sample = 0; sample < nsamples; sample++)
-              {
-                if (nsamples > 1)
-                {
-                  double s = sample - 0.5*(nsamples - 1);
+              let sampleCount = 0;
+              let interpolatedPtr = tmpPtr;
+              for (let sample = 0; sample < nsamples; ++sample) {
+                if (nsamples > 1) {
+                  let s = sample - 0.5 * (nsamples - 1);
                   s *= slabSampleSpacing;
-                  inPoint3[0] = inPoint2[0] + s*zAxis[0];
-                  inPoint3[1] = inPoint2[1] + s*zAxis[1];
-                  inPoint3[2] = inPoint2[2] + s*zAxis[2];
-                  inPoint3[3] = inPoint2[3] + s*zAxis[3];
+                  inPoint3[0] = inPoint2[0] + s * zAxis[0];
+                  inPoint3[1] = inPoint2[1] + s * zAxis[1];
+                  inPoint3[2] = inPoint2[2] + s * zAxis[2];
+                  inPoint3[3] = inPoint2[3] + s * zAxis[3];
                   inPoint = inPoint3;
                 }
   
-                if (perspective)
-                { // only do perspective if necessary
-                  F f = 1/inPoint[3];
+                if (perspective) {
+                  // only do perspective if necessary
+                  const f = 1 / inPoint[3];
                   inPoint[0] *= f;
                   inPoint[1] *= f;
                   inPoint[2] *= f;
                 }
   
-                if (newtrans)
-                { // apply the AbstractTransform if there is one
-                  vtkResliceApplyTransform(newtrans, inPoint, inOrigin,
-                                            inInvSpacing);
+                if (optimizedTransform !== null) { // apply the AbstractTransform if there is one
+                  publicAPI.applyTransform(
+                    optimizedTransform, inPoint, inOrigin, inInvSpacing);
                 }
   
-                if (interpolator->CheckBoundsIJK(inPoint))
-                {
+                if (interpolator.checkBoundsIJK(inPoint)) {
                   // do the interpolation
                   sampleCount++;
                   isInBounds = 1;
-                  interpolator->InterpolateIJK(inPoint, tmpPtr);
-                  tmpPtr += inComponents;
+                  interpolator.interpolateIJK(inPoint, interpolatedPtr);
+                  interpolatedPtr = interpolatedPtr.subarray(inComponents);
                 }
               }
   
-              tmpPtr -= sampleCount*inComponents;
-              if (sampleCount > 1)
-              {
+              if (sampleCount > 1) {
                 composite(tmpPtr, inComponents, sampleCount);
               }
-              tmpPtr += inComponents;
+              tmpPtr = tmpPtr.subarray(inComponents);
   
               // set "was in" to "is in" if first pixel
-              wasInBounds = ((idX > idXmin) ? wasInBounds : isInBounds);
+              wasInBounds = idX > idXmin ? wasInBounds : isInBounds;
             }
   
             // write a segment to the output
-            int endIdX = idX - 1 - (isInBounds != wasInBounds);
-            int numpixels = endIdX - startIdX + 1;
+            let endIdX = idX - 1 - (isInBounds != wasInBounds);
+            let numpixels = endIdX - startIdX + 1;
   
             if (wasInBounds)
             {
               if (outputStencil)
               {
-                outputStencil->InsertNextExtent(startIdX, endIdX, idY, idZ);
+                outputStencil.insertNextExtent(startIdX, endIdX, idY, idZ);
               }
   
               if (rescaleScalars)
               {
-                vtkImageResliceRescaleScalars(floatPtr, inComponents,
-                                              idXmax - idXmin + 1,
-                                              scalarShift, scalarScale);
+                publicAPI.rescaleScalars(
+                  floatPtr, inComponents, idXmax - idXmin + 1, scalarShift, scalarScale);
               }
   
               if (convertScalars)
               {
-                (self->*convertScalars)(tmpPtr - inComponents*(idX-startIdX),
-                                        outPtr,
-                                        vtkTypeTraits<F>::VTKTypeID(),
-                                        inComponents, numpixels,
-                                        startIdX, idY, idZ, threadId);
-  
-                outPtr = static_cast<char *>(outPtr) +
-                            numpixels*outComponents*scalarSize;
+                convertScalars(
+                  floatPtr, // tmpPtr - inComponents*(idX-startIdX),
+                  outPtr,
+                  model.dataType,
+                  inComponents,
+                  numpixels,
+                  startIdX,
+                  idY,
+                  idZ
+                );
+                outPtr = outPtr.subarray(numpixels * outComponents * scalarSize);
               }
               else
               {
-                convertpixels(outPtr, tmpPtr - inComponents*(idX - startIdX),
-                              outComponents, numpixels);
+                outPtr = convertpixels(
+                  outPtr, tmpPtr - inComponents*(idX - startIdX), outComponents, numpixels);
               }
             }
             else
             {
-              setpixels(outPtr, background, outComponents, numpixels);
+              outPtr = setpixels(outPtr, background, outComponents, numpixels);
             }
   
             startIdX += numpixels;
@@ -440,51 +429,48 @@ function vtkImageReslice(publicAPI, model) {
         }
         else // optimize for nearest-neighbor interpolation
         {
-          const char *inPtrTmp0 = static_cast<const char *>(inPtr);
-          char *outPtrTmp = static_cast<char *>(outPtr);
+          let inPtrTmp0 = inPtr;
+          let outPtrTmp = outPtr;
   
-          vtkIdType inIncX = inInc[0]*inputScalarSize;
-          vtkIdType inIncY = inInc[1]*inputScalarSize;
-          vtkIdType inIncZ = inInc[2]*inputScalarSize;
+          let inIncX = inInc[0] * inputScalarSize;
+          let inIncY = inInc[1] * inputScalarSize;
+          let inIncZ = inInc[2] * inputScalarSize;
   
-          int inExtX = inExt[1] - inExt[0] + 1;
-          int inExtY = inExt[3] - inExt[2] + 1;
-          int inExtZ = inExt[5] - inExt[4] + 1;
+          let inExtX = inExt[1] - inExt[0] + 1;
+          let inExtY = inExt[3] - inExt[2] + 1;
+          let inExtZ = inExt[5] - inExt[4] + 1;
   
-          int startIdX = idXmin;
-          int endIdX = idXmin-1;
-          bool isInBounds = false;
-          int bytesPerPixel = inputScalarSize*inComponents;
+          let startIdX = idXmin;
+          let endIdX = idXmin - 1;
+          let isInBounds = false;
+          let bytesPerPixel = inputScalarSize * inComponents;
   
-          for (int iidX = idXmin; iidX <= idXmax; iidX++)
-          {
-            F inPoint[3];
-            inPoint[0] = inPoint1[0] + iidX*xAxis[0];
-            inPoint[1] = inPoint1[1] + iidX*xAxis[1];
-            inPoint[2] = inPoint1[2] + iidX*xAxis[2];
+          for (let iidX = idXmin; iidX <= idXmax; iidX++) {
+            const inPoint = [
+              inPoint1[0] + iidX * xAxis[0],
+              inPoint1[1] + iidX * xAxis[1],
+              inPoint1[2] + iidX * xAxis[2],
+            ];
   
-            int inIdX = vtkInterpolationMath::Round(inPoint[0]) - inExt[0];
-            int inIdY = vtkInterpolationMath::Round(inPoint[1]) - inExt[2];
-            int inIdZ = vtkInterpolationMath::Round(inPoint[2]) - inExt[4];
+            let inIdX = vtkInterpolationMathRound(inPoint[0]) - inExt[0];
+            let inIdY = vtkInterpolationMathRound(inPoint[1]) - inExt[2];
+            let inIdZ = vtkInterpolationMathRound(inPoint[2]) - inExt[4];
   
             if (inIdX >= 0 && inIdX < inExtX &&
                 inIdY >= 0 && inIdY < inExtY &&
-                inIdZ >= 0 && inIdZ < inExtZ)
-            {
-              if (!isInBounds)
-              {
+                inIdZ >= 0 && inIdZ < inExtZ) {
+              if (!isInBounds) {
                 // clear leading out-of-bounds pixels
                 startIdX = iidX;
                 isInBounds = true;
-                setpixels(outPtr, background, outComponents, startIdX-idXmin);
-                outPtrTmp = static_cast<char *>(outPtr);
+                outPtr = setpixels(outPtr, background, outComponents, startIdX-idXmin);
+                outPtrTmp = outPtr;
               }
               // set the final index that was within input bounds
               endIdX = iidX;
   
               // perform nearest-neighbor interpolation via pixel copy
-              const char *inPtrTmp = inPtrTmp0 +
-                inIdX*inIncX + inIdY*inIncY + inIdZ*inIncZ;
+              let inPtrTmp = inPtrTmp0.subarray(inIdX*inIncX + inIdY*inIncY + inIdZ*inIncZ);
   
               // when memcpy is used with a constant size, the compiler will
               // optimize away the function call and use the minimum number
@@ -495,25 +481,15 @@ function vtkImageReslice(publicAPI, model) {
                   outPtrTmp[0] = inPtrTmp[0];
                   break;
                 case 2:
-                  memcpy(outPtrTmp, inPtrTmp, 2);
-                  break;
                 case 3:
-                  memcpy(outPtrTmp, inPtrTmp, 3);
-                  break;
                 case 4:
-                  memcpy(outPtrTmp, inPtrTmp, 4);
-                  break;
                 case 8:
-                  memcpy(outPtrTmp, inPtrTmp, 8);
-                  break;
                 case 12:
-                  memcpy(outPtrTmp, inPtrTmp, 12);
-                  break;
                 case 16:
-                  memcpy(outPtrTmp, inPtrTmp, 16);
+                  outPtrTmp.set(inPtrTmp.subarray(0, bytesPerPixel));
                   break;
                 default:
-                  int oc = 0;
+                  let oc = 0;
                   do
                   {
                     outPtrTmp[oc] = inPtrTmp[oc];
@@ -521,7 +497,7 @@ function vtkImageReslice(publicAPI, model) {
                   while (++oc != bytesPerPixel);
                   break;
               }
-              outPtrTmp += bytesPerPixel;
+              outPtrTmp.subarray(bytesPerPixel);
             }
             else if (isInBounds)
             {
@@ -532,22 +508,22 @@ function vtkImageReslice(publicAPI, model) {
   
           // clear trailing out-of-bounds pixels
           outPtr = outPtrTmp;
-          setpixels(outPtr, background, outComponents, idXmax-endIdX);
+          outPtr = setpixels(outPtr, background, outComponents, idXmax-endIdX);
   
           if (outputStencil && endIdX >= startIdX)
           {
-            outputStencil->InsertNextExtent(startIdX, endIdX, idY, idZ);
+            outputStencil.insertNextExtent(startIdX, endIdX, idY, idZ);
           }
         }
       }
     }
   
-    vtkFreeBackgroundPixel(&background);
+    //vtkFreeBackgroundPixel(&background);
   
-    if (!optimizeNearest)
-    {
-      delete [] floatPtr;
-    }
+    //if (!optimizeNearest)
+    //{
+    //  delete [] floatPtr;
+    //}
   };
 
   publicAPI.getIndexMatrix = (input, output) => {
@@ -631,49 +607,96 @@ function vtkImageReslice(publicAPI, model) {
 
   publicAPI.getDataTypeMinMax = (dataType) => {
     switch (dataType) {
+      case 'Int8Array':
+        return { min: -128, max: 127};
       case 'Uint8Array':
-        return { min: 0}
+      case 'Uint8ClampedArray':
+        return { min: 0, max: 255};
+      case 'Int16Array':
+        return { min: -32768, max: 32767};
+      case 'Uint16Array':
+        return { min: 0, max: 65535};
+      case 'Int32Array':
+        return { min: -2147483648, max: 2147483647};
+      case 'Uint32Array':
+        return { min: 0, max: 4294967295};
+      case 'Float32Array':
+        return { min: -1.2e38, max: 1.2e38};
+      case 'Float64Array':
+        return { min: -1.2e38, max: 1.2e38};
+        
     }
   };
-  publicAPI.getConversionFunc = ( inputType, dataType, scalarShift, scalarScale, forceClamping) => {
-    if (dataType !== VtkDataTypes.FLOAT && dataType !== VtkDataTypes.DOUBLE && !forceClamping) {
-      const checkMin = (vtkDataArray::GetDataTypeMin(inputType) + scalarShift) * scalarScale;
-      const checkMax = (vtkDataArray::GetDataTypeMax(inputType) + scalarShift) * scalarScale;
-    F outputMin = static_cast<F>(vtkDataArray::GetDataTypeMin(dataType));
-    F outputMax = static_cast<F>(vtkDataArray::GetDataTypeMax(dataType));
-    if (checkMin > checkMax)
-    {
-      F tmp = checkMax;
-      checkMax = checkMin;
-      checkMin = tmp;
-    }
-    forceClamping = (checkMin < outputMin || checkMax > outputMax);
-  }
 
-  if (forceClamping && dataType != VTK_FLOAT && dataType != VTK_DOUBLE)
-  {
-    // clamp to the limits of the output type
-    switch (dataType)
+  publicAPI.clamp = (outPtr, inPtr, numscalars, n) => {
+    const minMax = publicAPI.getDataTypeMinMax(model.scalarType);
+    const min = minMax['min'];
+    const max = minMax['max'];
+    for (let i = n * numscalars - 1; i >= 0; --i)
     {
-      vtkTemplateAliasMacro(
-        *conversion = &(vtkImageResliceConversion<F, VTK_TT>::Clamp)
-        );
-      default:
-        *conversion = nullptr;
+      outPtr[i] = vtkInterpolationMathClamp(inPtr[i], min, max);
     }
-  }
-  else
-  {
-    // clamping is unnecessary, so optimize by skipping the clamp step
-    switch (dataType)
-    {
-      vtkTemplateAliasMacro(
-        *conversion = &(vtkImageResliceConversion<F, VTK_TT>::Convert)
-        );
-      default:
-        *conversion = nullptr;
+    return outPtr.subarray(n * numscalars);
+  };
+
+  publicAPI.convert = (outPtr, inPtr, numscalars, n) => {
+    for (let i = n * numscalars - 1; i >= 0; --i) {
+      outPtr[i] = Math.round(inPtr[i]);
     }
-  }
+    return outPtr.subarray(n * numscalars);
+  };
+
+  publicAPI.getConversionFunc = (inputType, dataType, scalarShift, scalarScale, forceClamping) => {
+    if (dataType !== VtkDataTypes.FLOAT && dataType !== VtkDataTypes.DOUBLE && !forceClamping) {
+      const inMinMax = publicAPI.getDataTypeMinMax(inputType)
+      let checkMin = (inMinMax['min'] + scalarShift) * scalarScale;
+      let checkMax = (inMinMax['max'] + scalarShift) * scalarScale;
+      const outMinMax = publicAPI.getDataTypeMinMax(dataType)
+      const outputMin = outMinMax['min'];
+      const outputMax = outMinMax['max'];
+      if (checkMin > checkMax) {
+        const tmp = checkMax;
+        checkMax = checkMin;
+        checkMin = tmp;
+      }
+      forceClamping = (checkMin < outputMin || checkMax > outputMax);
+    }
+
+    if (forceClamping && dataType !== VtkDataTypes.FLOAT && dataType !== VtkDataTypes.DOUBLE) {
+      return publicAPI.clamp;
+    } else {
+      return publicAPI.convert;
+    }
+  };
+
+  publicAPI.set = (outPtr, inPtr, numscalars, n) => {
+    outPtr.set(inPtr, numscalars * n);
+    return outPtr.subarray(numscalars * n);
+  };
+
+  publicAPI.getSetPixelsFunc = (dataType, dataSize, numscalars, dataPtr) => {
+    return publicAPI.set;
+  };
+
+  publicAPI.getCompositeFunc = (slabMode, slabTrapezoidIntegration) => {
+    return null;
+  };
+
+  publicAPI.applyTransform = (newTrans, inPoint, inOrigin, inInvSpacing) => {
+    vec3.transformMat4(inPoint, inPoint, newTrans);
+    inPoint[0] -= inOrigin[0];
+    inPoint[1] -= inOrigin[1];
+    inPoint[2] -= inOrigin[2];
+    inPoint[0] *= inInvSpacing[0];
+    inPoint[1] *= inInvSpacing[1];
+    inPoint[2] *= inInvSpacing[2];
+  };
+
+  publicAPI.rescaleScalars = (floatData, components, n, scalarShift, scalarScale) => {
+    const m = n * components;
+    for (let i = 0; i < m; ++i) {
+      floatData[i] = (floatData[i] + scalarShift) * scalarScale;
+    }
   };
 }
 
@@ -693,14 +716,16 @@ const DEFAULT_VALUES = {
   outputOrigin: null,
   outputDimensionality: 3,
   autoCropOutput: false,
+  slabMode: SlabMode.MIN,
+  slabTrapezoidIntegration: false,
   slabNumberOfSlices: 1,
   slabSliceSpacingFraction: 1,
-  scalarShift = 0,
-  scalarScale = 1,
-  wrap = false,
-  mirror = false,
-  border = false,
-  interpolator = vtkImageInterpolator.newInstance(),
+  scalarShift: 0,
+  scalarScale: 1,
+  wrap: false,
+  mirror: false,
+  border: false,
+  interpolator: vtkImageInterpolator.newInstance(),
 };
 
 // ----------------------------------------------------------------------------

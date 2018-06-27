@@ -86,9 +86,10 @@ function vtkImageInterpolator(publicAPI, model) {
     }
 
     const inPtr = interpolationInfo.pointer.subarray(
-      inIdX0 * inInc[0] + inIdY0 * inInc[1] + inIdZ0 * inInc[2]
+      inIdX0 * inInc[0] + inIdY0 * inInc[1] + inIdZ0 * inInc[2],
+      numscalars
     );
-    value.splice(0, numscalars, inPtr);
+    value.set(inPtr, 0);
   };
 
   publicAPI.interpolatePoint = (interpolationInfo, point, value) => {
@@ -118,7 +119,7 @@ function vtkImageInterpolator(publicAPI, model) {
 
     // This is a hot loop.
     for (let i = 0; i < n; ++i) {
-      outPtr.splice(0, numscalars, inPtr0.subarray(iX[i]));
+      outPtr.set(inPtr0.subarray(iX[i], numscalars), i * numscalars);
     }
   };
 
