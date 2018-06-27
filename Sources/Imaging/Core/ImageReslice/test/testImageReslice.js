@@ -5,7 +5,7 @@ import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
 import vtkImageSlice from 'vtk.js/Sources/Rendering/Core/ImageSlice';
-import vtkImageReslice from 'vtk.js/Sources/Imaging/ImageReslice';
+import vtkImageReslice from 'vtk.js/Sources/Imaging/Core/ImageReslice';
 import vtkOpenGLRenderWindow from 'vtk.js/Sources/Rendering/OpenGL/RenderWindow';
 import vtkRenderer from 'vtk.js/Sources/Rendering/Core/Renderer';
 import vtkRenderWindow from 'vtk.js/Sources/Rendering/Core/RenderWindow';
@@ -37,8 +37,8 @@ test.onlyIfWebGL('Test vtkImageReslice Rendering', (t) => {
 
   const imageData = gc.registerResource(vtkImageData.newInstance());
   imageData.setSpacing(0.1, 0.1, 0.1);
-  imageData.setExtent(0, 255, 0, 255, 0, 255);
-  const dims = [256, 256, 256];
+  imageData.setExtent(0, 127, 0, 127, 0, 127);
+  const dims = [128, 128, 128];
 
   const newArray = new Int16Array(dims[0] * dims[1] * dims[2]);
 

@@ -12,8 +12,9 @@ function vtkImagePointDataIterator(publicAPI, model) {
   // Set our className
   model.classHierarchy.push('vtkImagePointDataIterator');
 
-  publicAPI.initialize = (image, extent, stencil, algorithm) => {
+  publicAPI.initialize = (image, inExtent, stencil, algorithm) => {
     const dataExtent = image.getExtent();
+    let extent = inExtent;
     if (extent == null) {
       extent = dataExtent;
     }
@@ -21,12 +22,13 @@ function vtkImagePointDataIterator(publicAPI, model) {
     for (let i = 0; i < 6; i += 2) {
       model.extent[i] = Math.max(extent[i], dataExtent[i]);
       model.extent[i + 1] = Math.min(extent[i + 1], dataExtent[i + 1]);
-      if (model.extent[i] > model.extent[i+1]) {
+      if (model.extent[i] > model.extent[i + 1]) {
         emptyExtent = true;
       }
     }
     model.rowIncrement = dataExtent[1] - dataExtent[0] + 1;
-    model.sliceIncrement = model.rowIncrement * (dataExtent[3] - dataExtent[2] + 1);
+    model.sliceIncrement =
+      model.rowIncrement * (dataExtent[3] - dataExtent[2] + 1);
 
     let rowSpan;
     let sliceSpan;
@@ -37,14 +39,18 @@ function vtkImagePointDataIterator(publicAPI, model) {
       rowSpan = model.extent[1] - model.extent[0] + 1;
       sliceSpan = model.extent[3] - model.extent[2] + 1;
       volumeSpan = model.extent[5] - model.extent[4] + 1;
-      model.id = (model.extent[0] - dataExtent[0]) +
-      (model.extent[2] - dataExtent[2]) * model.rowIncrement +
+      model.id =
+        model.extent[0] -
+        dataExtent[0] +
+        (model.extent[2] - dataExtent[2]) * model.rowIncrement +
         (model.extent[4] - dataExtent[4]) * model.sliceIncrement;
 
       // Compute the end increments (continous increments).
       model.rowEndIncrement = model.rowIncrement - rowSpan;
-      model.sliceEndIncrement = model.rowEndIncrement +
-      model.sliceIncrement - model.rowIncrement * sliceSpan;
+      model.sliceEndIncrement =
+        model.rowEndIncrement +
+        model.sliceIncrement -
+        model.rowIncrement * sliceSpan;
     } else {
       // Extent is empty, isAtEnd() will immediately return "true"
       rowSpan = 0;
@@ -55,17 +61,17 @@ function vtkImagePointDataIterator(publicAPI, model) {
       model.sliceEndIncrement = 0;
       for (let i = 0; i < 6; i += 2) {
         model.extent[i] = dataExtent[i];
-        model.extent[i+1] = dataExtent[i]-1;
+        model.extent[i + 1] = dataExtent[i] - 1;
       }
     }
 
     // Get the end pointers for row, slice, and volume.
     model.spanEnd = model.id + rowSpan;
     model.rowEnd = model.id + rowSpan;
-    model.sliceEnd = model.id +
-      (model.rowIncrement * sliceSpan - model.rowEndIncrement);
-    model.end = model.id +
-      (model.sliceIncrement * volumeSpan - model.sliceEndIncrement);
+    model.sliceEnd =
+      model.id + (model.rowIncrement * sliceSpan - model.rowEndIncrement);
+    model.end =
+      model.id + (model.sliceIncrement * volumeSpan - model.sliceEndIncrement);
 
     // For keeping track of the current x,y,z index.
     model.index[0] = model.extent[0];
@@ -88,8 +94,10 @@ function vtkImagePointDataIterator(publicAPI, model) {
       model.spanSliceIncrement = 0;
       model.spanSliceEndIncrement = 0;
 
-      if (stencilExtent[3] >= stencilExtent[2] &&
-          stencilExtent[5] >= stencilExtent[4]) {
+      if (
+        stencilExtent[3] >= stencilExtent[2] &&
+        stencilExtent[5] >= stencilExtent[4]
+      ) {
         model.spanSliceIncrement = stencilExtent[3] - stencilExtent[2] + 1;
         const botOffset = model.extent[2] - stencilExtent[2];
         if (botOffset >= 0) {
@@ -136,9 +144,13 @@ function vtkImagePointDataIterator(publicAPI, model) {
         model.extent[5] = stencilExtent[5];
       }
 
-      if (model.extent[2] <= model.extent[3] &&
-          model.extent[4] <= model.extent[5]) {
-        model.spanCountPointer = stencil.extentListLengths.subarray(startOffset);
+      if (
+        model.extent[2] <= model.extent[3] &&
+        model.extent[4] <= model.extent[5]
+      ) {
+        model.spanCountPointer = stencil.extentListLengths.subarray(
+          startOffset
+        );
 
         model.spanListPointer = stencil.extentLists.subarray(startOffset);
 
@@ -154,23 +166,22 @@ function vtkImagePointDataIterator(publicAPI, model) {
         model.inStencil = false;
       }
     } else {
-        model.hasStencil = false;
-        model.inStencil = true;
-        model.spanSliceEndIncrement = 0;
-        model.spanSliceIncrement = 0;
-        model.spanIndex = 0;
-        model.spanCountPointer = null;
-        model.spanListPointer = null;
+      model.hasStencil = false;
+      model.inStencil = true;
+      model.spanSliceEndIncrement = 0;
+      model.spanSliceIncrement = 0;
+      model.spanIndex = 0;
+      model.spanCountPointer = null;
+      model.spanListPointer = null;
     }
 
     if (algorithm) {
       model.algorithm = algorithm;
       const maxCount = sliceSpan * volumeSpan;
       model.target = maxCount / 50 + 1;
-      model.count = model.target * 50 - (maxCount / model.target) * model.target + 1;
-    }
-    else
-    {
+      model.count =
+        model.target * 50 - maxCount / model.target * model.target + 1;
+    } else {
       model.algorithm = null;
       model.target = 0;
       model.count = 0;
@@ -183,45 +194,42 @@ function vtkImagePointDataIterator(publicAPI, model) {
     const spans = model.spanListPointer;
     const n = model.spanCountPointer[0];
     let i;
-    for (i = 0; i < n; ++i)
-    {
-      if (spans[i] > idX)
-      {
+    for (i = 0; i < n; ++i) {
+      if (spans[i] > idX) {
         break;
       }
       inStencil = !inStencil;
     }
-  
+
     // Set the primary span state variables
     model.spanIndex = i;
     model.inStencil = inStencil;
-  
+
     // Clamp the span end to MaxX+1
     let endIdX = model.extent[1] + 1;
-    if (i < n && spans[i] <= model.extent[1])
-    {
+    if (i < n && spans[i] <= model.extent[1]) {
       endIdX = spans[i];
     }
-  
+
     // Compute the pointers for idX and endIdX
     const rowStart =
       model.rowEnd - (model.rowIncrement - model.rowEndIncrement);
-  
+
     model.id = rowStart + (idX - model.extent[0]);
     model.spanEnd = rowStart + (endIdX - model.extent[0]);
   };
 
   publicAPI.nextSpan = () => {
-    if (model.spanEnd == model.rowEnd) {
+    if (model.spanEnd === model.rowEnd) {
       let spanIncr = 1;
 
-      if (model.spanEnd != model.sliceEnd) {
+      if (model.spanEnd !== model.sliceEnd) {
         // Move to the next row
         model.id = model.rowEnd + model.rowEndIncrement;
         model.rowEnd += model.rowIncrement;
         model.spanEnd = model.rowEnd;
         model.index[1]++;
-      } else if (model.spanEnd != model.end) {
+      } else if (model.spanEnd !== model.end) {
         // Move to the next slice
         model.id = model.sliceEnd + model.sliceEndIncrement;
         model.sliceEnd += model.sliceIncrement;
@@ -240,10 +248,12 @@ function vtkImagePointDataIterator(publicAPI, model) {
       model.index[0] = model.extent[0];
 
       if (model.hasStencil) {
-        if ((model.index[1] >= model.extent[2]) &&
-            (model.index[1] <= model.extent[3]) &&
-            (model.index[2] >= model.extent[4]) &&
-            (model.index[2] <= model.extent[5])) {
+        if (
+          model.index[1] >= model.extent[2] &&
+          model.index[1] <= model.extent[3] &&
+          model.index[2] >= model.extent[4] &&
+          model.index[2] <= model.extent[5]
+        ) {
           model.spanCountPointer = model.spanCountPointer.subarray(spanIncr);
           model.spanListPointer = model.spanListPointer.subarray(spanIncr);
           publicAPI.setSpanState(model.extent[0]);
@@ -259,10 +269,10 @@ function vtkImagePointDataIterator(publicAPI, model) {
       // Move to the next span in the current row
       model.id = model.spanEnd;
       const spanCount = model.spanCountPointer[0];
-      const endIdX = model.extent[1] + 1;
+      let endIdX = model.extent[1] + 1;
       model.index[0] = endIdX;
       if (model.spanIndex < spanCount) {
-        let tmpIdX = model.spanListPointer[model.spanIndex];
+        const tmpIdX = model.spanListPointer[model.spanIndex];
         if (tmpIdX < endIdX) {
           model.index[0] = tmpIdX;
         }
@@ -278,7 +288,8 @@ function vtkImagePointDataIterator(publicAPI, model) {
       }
 
       // Compute the end of the span
-      model.spanEnd = model.rowEnd -
+      model.spanEnd =
+        model.rowEnd -
         (model.rowIncrement - model.rowEndIncrement) +
         (endIdX - model.extent[0]);
 
@@ -289,17 +300,15 @@ function vtkImagePointDataIterator(publicAPI, model) {
 
   publicAPI.isAtEnd = () => model.id === model.end;
   publicAPI.isInStencil = () => model.inStencil;
-  publicAPI.spanEndInd = () => model.spanEnd;
+  publicAPI.spanEndId = () => model.spanEnd;
 
   publicAPI.reportProgress = () => {};
 
-  publicAPI.getArray = (array, i) => {
-    return array.subarray(i * array.getNumberOfComponents());
-  };
+  publicAPI.getArray = (array, i) =>
+    array.getData().subarray(i * array.getNumberOfComponents());
 
-  publicAPI.getScalars = (image, i = 0) => {
+  publicAPI.getScalars = (image, i = 0) =>
     publicAPI.getArray(image.getPointData().getScalars(), i);
-  };
 }
 
 // ----------------------------------------------------------------------------
@@ -328,8 +337,8 @@ const DEFAULT_VALUES = {
   spanCountPointer: null,
   spanListPointer: null,
   algorithm: null,
-  target = 0,
-  count = 0,
+  target: 0,
+  count: 0,
 };
 
 // ----------------------------------------------------------------------------
@@ -340,10 +349,7 @@ export function extend(publicAPI, model, initialValues = {}) {
   // Object methods
   macro.obj(publicAPI, model);
 
-  macro.get(publicAPI, model, [
-    'id',
-    'index',
-  ]);
+  macro.get(publicAPI, model, ['id', 'index']);
 
   // Object specific methods
   vtkImagePointDataIterator(publicAPI, model);

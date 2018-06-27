@@ -1,6 +1,6 @@
 import macro from 'vtk.js/Sources/macro';
 import { Constants, ImageBorderMode } from './Constants';
-import { vtkInterpolationInfo, vtkInterpolationWeights } from './InterpolationInfo';
+import { vtkInterpolationInfo } from './InterpolationInfo';
 
 // ----------------------------------------------------------------------------
 // Global methods
@@ -17,9 +17,11 @@ function vtkAbstractImageInterpolator(publicAPI, model) {
   publicAPI.initialize = (data) => {
     publicAPI.releaseData();
     model.scalars = data.getPointData().getScalars();
-    model.spacing = data.spacing;
-    model.origin = data.origin;
+    model.spacing = data.getSpacing();
+    model.origin = data.getOrigin();
     model.extent = data.getExtent();
+
+    publicAPI.update();
   };
   publicAPI.releaseData = () => {
     model.scalars = null;
@@ -68,7 +70,7 @@ function vtkAbstractImageInterpolator(publicAPI, model) {
 
     const dataSize = 1; // scalars.getDataTyoeSize()
     const inPtr = model.scalars.getData();
-    model.interpolationInfo.pointer = inPtr + component * dataSize;
+    model.interpolationInfo.pointer = inPtr.subarray(component * dataSize);
 
     model.interpolationInfo.scalarType = model.scalars.dataType;
     model.interpolationInfo.dataTypeSize = model.scalars.getElementComponentSize();
@@ -97,7 +99,9 @@ function vtkAbstractImageInterpolator(publicAPI, model) {
 
       let c = component > 0 ? component : 0;
       c = c < ncomp ? c : ncomp - 1;
-      iinfo.pointer = model.interpolationInfo.subarray(dataTypeSize * c);
+      iinfo.pointer = model.interpolationInfo.pointer.subarray(
+        dataTypeSize * c
+      );
       iinfo.numberOfComponents = 1;
 
       const v = [value];
@@ -140,12 +144,8 @@ function vtkAbstractImageInterpolator(publicAPI, model) {
   publicAPI.getNumberOfComponents = () =>
     model.interpolationInfo.numberOfComponents;
 
-  publicAPI.interpolateIJK = (point) => {
-    const value = new window[model.interpolationInfo.scalarType](
-      model.interpolationInfo.numberOfComponents
-    );
+  publicAPI.interpolateIJK = (point, value) => {
     publicAPI.interpolatePoint(model.interpolationInfo, point, value);
-    return value;
   };
 
   publicAPI.checkBoundsIJK = (point) =>
@@ -198,7 +198,7 @@ const DEFAULT_VALUES = {
   slidingWindow: false,
 
   scalars: null,
-  interpolationInfo: vtkInterpolationInfo.newInstance(),
+  interpolationInfo: Object.assign({}, vtkInterpolationInfo),
   interpolationFunc: null,
   rowInterpolationFunc: null,
   structuredBounds: [0, -1, 0, -1, 0, -1],
@@ -222,6 +222,7 @@ export function extend(publicAPI, model, initialValues = {}) {
     'borderMode',
     'slidingWindow',
   ]);
+  macro.get(publicAPI, model, ['origin', 'spacing']);
 
   // Object specific methods
   vtkAbstractImageInterpolator(publicAPI, model);

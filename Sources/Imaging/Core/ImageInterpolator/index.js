@@ -10,7 +10,7 @@ import {
 } from 'vtk.js/Sources/Imaging/Core/AbstractImageInterpolator/InterpolationInfo';
 import {
   InterpolationMode,
-  BorderMode,
+  ImageBorderMode,
 } from 'vtk.js/Sources/Imaging/Core/AbstractImageInterpolator/Constants';
 
 // ----------------------------------------------------------------------------
@@ -68,12 +68,12 @@ function vtkImageInterpolator(publicAPI, model) {
     let inIdZ0 = vtkInterpolationMathRound(point[2]);
 
     switch (interpolationInfo.borderMode) {
-      case BorderMode.REPEAT:
+      case ImageBorderMode.REPEAT:
         inIdX0 = vtkInterpolationMathWrap(inIdX0, inExt[0], inExt[1]);
         inIdY0 = vtkInterpolationMathWrap(inIdY0, inExt[2], inExt[3]);
         inIdZ0 = vtkInterpolationMathWrap(inIdZ0, inExt[4], inExt[5]);
         break;
-      case BorderMode.MIRROR:
+      case ImageBorderMode.MIRROR:
         inIdX0 = vtkInterpolationMathMirror(inIdX0, inExt[0], inExt[1]);
         inIdY0 = vtkInterpolationMathMirror(inIdY0, inExt[2], inExt[3]);
         inIdZ0 = vtkInterpolationMathMirror(inIdZ0, inExt[4], inExt[5]);
@@ -231,13 +231,13 @@ function vtkImageInterpolator(publicAPI, model) {
         const inId = [0, 0, 0, 0];
         let l = 0;
         switch (weights.borderMode) {
-          case BorderMode.REPEAT:
+          case ImageBorderMode.REPEAT:
             do {
               inId[l] = vtkInterpolationMathWrap(inId0, minExt, maxExt);
               inId0++;
             } while (++l < lcount);
             break;
-          case BorderMode.MIRROR:
+          case ImageBorderMode.MIRROR:
             do {
               inId[l] = vtkInterpolationMathMirror(inId0, minExt, maxExt);
               inId0++;
