@@ -39,7 +39,7 @@ function vtkImageReslice(publicAPI, model) {
       return;
     }
 
-    console.time('reslice');
+    // console.time('reslice');
 
     // Retrieve output and volume data
     const origin = input.getOrigin();
@@ -135,7 +135,10 @@ function vtkImageReslice(publicAPI, model) {
       outDims[i] = outWholeExt[2 * i + 1] - outWholeExt[2 * i] + 1;
     }
 
-    const dataType = inScalars.getDataType();
+    let dataType = inScalars.getDataType();
+    if (model.outputScalarType) {
+      dataType = model.outputScalarType;
+    }
 
     const numComponents = input
       .getPointData()
@@ -198,7 +201,7 @@ function vtkImageReslice(publicAPI, model) {
     outData[0] = output;
 
     vtkDebugMacro('Produced output');
-    console.timeEnd('reslice');
+    // console.timeEnd('reslice');
   };
 
   publicAPI.vtkImageResliceExecute = (input, output) => {
@@ -222,7 +225,7 @@ function vtkImageReslice(publicAPI, model) {
     // extra scalar info for nearest-neighbor optimization
     let inPtr = inScalars.getData();
     const inputScalarSize = 1; // inScalars.getElementComponentSize(); // inScalars.getDataTypeSize();
-    const inputScalarType = inScalars.dataType;
+    const inputScalarType = inScalars.getDataType();
     const inComponents = inScalars.getNumberOfComponents(); // interpolator.GetNumberOfComponents();
     const componentOffset = model.interpolator.getComponentOffset();
     const borderMode = model.interpolator.getBorderMode();
@@ -257,7 +260,7 @@ function vtkImageReslice(publicAPI, model) {
         convertScalars != null ||
         rescaleScalars
       ) &&
-      inputScalarType === outScalars.dataType &&
+      inputScalarType === outScalars.getDataType() &&
       fullSize === inScalars.getNumberOfTuples() &&
       model.border === true &&
       nsamples <= 1;
@@ -462,7 +465,7 @@ function vtkImageReslice(publicAPI, model) {
                 convertScalars(
                   floatPtr, // tmpPtr - inComponents*(idX-startIdX),
                   outPtr,
-                  model.dataType,
+                  inputScalarType,
                   inComponents,
                   numpixels,
                   startIdX,
@@ -680,18 +683,17 @@ function vtkImageReslice(publicAPI, model) {
     }
   };
 
-  publicAPI.clamp = (outPtr, inPtr, numscalars, n) => {
-    const minMax = publicAPI.getDataTypeMinMax(model.scalarType);
-    const min = minMax.min;
-    const max = minMax.max;
-    for (let i = n * numscalars - 1; i >= 0; --i) {
+  publicAPI.clamp = (outPtr, inPtr, numscalars, n, min, max) => {
+    const count = n * numscalars;
+    for (let i = 0; i < count; ++i) {
       outPtr[i] = vtkInterpolationMathClamp(inPtr[i], min, max);
     }
     return outPtr.subarray(n * numscalars);
   };
 
   publicAPI.convert = (outPtr, inPtr, numscalars, n) => {
-    for (let i = n * numscalars - 1; i >= 0; --i) {
+    const count = n * numscalars;
+    for (let i = 0; i < count; ++i) {
       outPtr[i] = Math.round(inPtr[i]);
     }
     return outPtr.subarray(n * numscalars);
@@ -729,7 +731,10 @@ function vtkImageReslice(publicAPI, model) {
       dataType !== VtkDataTypes.FLOAT &&
       dataType !== VtkDataTypes.DOUBLE
     ) {
-      return publicAPI.clamp;
+      const minMax = publicAPI.getDataTypeMinMax(dataType);
+      const clamp = (outPtr, inPtr, numscalars, n) =>
+        publicAPI.clamp(outPtr, inPtr, numscalars, n, minMax.min, minMax.max);
+      return clamp;
     }
     return publicAPI.convert;
   };
@@ -854,6 +859,7 @@ const DEFAULT_VALUES = {
   outputSpacing: null, // automatically computed if null
   outputOrigin: null, // automatically computed if null
   outputExtent: null, // automatically computed if null
+  outputScalarType: null,
   wrap: false, // don't wrap
   mirror: false, // don't mirror
   border: true, // apply a border
@@ -889,6 +895,9 @@ export function extend(publicAPI, model, initialValues = {}) {
     'outputOrigin',
     'outputSpacing',
     'outputExtent',
+    'outputScalarType',
+    'scalarShift',
+    'scalarScale',
     'wrap',
     'mirror',
     'border',

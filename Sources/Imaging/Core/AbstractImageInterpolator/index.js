@@ -68,7 +68,7 @@ function vtkAbstractImageInterpolator(publicAPI, model) {
     component = component > 0 ? component : 0;
     component = component < ncomp ? component : ncomp - 1;
 
-    const dataSize = 1; // scalars.getDataTyoeSize()
+    const dataSize = 1; // scalars.getDataTypeSize()
     const inPtr = model.scalars.getData();
     model.interpolationInfo.pointer = inPtr.subarray(component * dataSize);
 

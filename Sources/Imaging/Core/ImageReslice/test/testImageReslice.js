@@ -11,13 +11,7 @@ import vtkOpenGLRenderWindow from 'vtk.js/Sources/Rendering/OpenGL/RenderWindow'
 import vtkRenderer from 'vtk.js/Sources/Rendering/Core/Renderer';
 import vtkRenderWindow from 'vtk.js/Sources/Rendering/Core/RenderWindow';
 
-// import baseline1 from './testCube.png';
-// import baseline2 from './testCube_2.png';
-
-function sleep(delay) {
-  const start = new Date().getTime();
-  while (new Date().getTime() < start + delay);
-}
+import baseline1 from './testReslice.png';
 
 test.onlyIfWebGL('Test vtkImageReslice Rendering', (t) => {
   const gc = testUtils.createGarbageCollector(t);
@@ -42,7 +36,7 @@ test.onlyIfWebGL('Test vtkImageReslice Rendering', (t) => {
   imageData.setExtent(0, 127, 0, 127, 0, 127);
   const dims = [128, 128, 128];
 
-  const newArray = new Int16Array(dims[0] * dims[1] * dims[2]);
+  const newArray = new Uint8Array(dims[0] * dims[1] * dims[2]);
 
   let i = 0;
   for (let z = 0; z < dims[2]; z++) {
@@ -72,15 +66,11 @@ test.onlyIfWebGL('Test vtkImageReslice Rendering', (t) => {
   imageReslice.setInputData(imageData);
   imageReslice.setOutputDimensionality(2);
   const axes = mat4.create();
-  // mat4.translate(axes, axes, [dims[0] / 2, dims[1] / 2, dims[2] / 2]);
   mat4.rotateX(axes, axes, 45 * Math.PI / 180);
-  // const transposedAxes = mat4.create();
-  // mat4.transpose(transposedAxes, axes);
-  // mat4.rotateY(axes, axes, 10 * Math.PI / 180);
-  // mat4.rotateZ(axes, axes, 60 * Math.PI / 180);
-  // mat4.translate(axes, axes, [-dims[0] / 2, -dims[1] / 2, -dims[2] / 2]);
   imageReslice.setResliceAxes(axes);
   imageReslice.setBorder(true);
+  imageReslice.setOutputScalarType('Uint16Array');
+  imageReslice.setScalarScale(65535 / 255);
   // imageReslice.setOutputOrigin([
   //   dims[0] * s / 2,
   //   dims[1] * s / 2,
@@ -89,11 +79,12 @@ test.onlyIfWebGL('Test vtkImageReslice Rendering', (t) => {
 
   const resliceMapper = gc.registerResource(vtkImageMapper.newInstance());
   resliceMapper.setInputConnection(imageReslice.getOutputPort());
+  resliceMapper.setKSlice(0);
   const resliceActor = gc.registerResource(vtkImageSlice.newInstance());
   resliceActor.setMapper(resliceMapper);
   resliceActor.setUserMatrix(axes);
-  // resliceMapper.setKSlice(dims[2] / 2 - 1);
-  resliceMapper.setKSlice(0);
+  resliceActor.getProperty().setColorLevel(65535 / 2);
+  resliceActor.getProperty().setColorWindow(65535);
   renderer.addActor(resliceActor);
 
   // now create something to view it, in this case webgl
@@ -102,16 +93,18 @@ test.onlyIfWebGL('Test vtkImageReslice Rendering', (t) => {
   renderWindow.addView(glwindow);
   glwindow.setSize(400, 400);
 
-  glwindow.captureImage();
-  sleep(500);
+  // function sleep(delay) {
+  //   const start = new Date().getTime();
+  //   while (new Date().getTime() < start + delay);
+  // }
 
-  // const image = glwindow.captureImage();
-  // testUtils.compareImages(
-  //   image,
-  //   [baseline1, baseline2],
-  //   'Imaging/ImageReslice/test',
-  //   t,
-  //   2.5,
-  //   gc.releaseResources
-  // );
+  const image = glwindow.captureImage();
+  testUtils.compareImages(
+    image,
+    [baseline1],
+    'Imaging/ImageReslice/test',
+    t,
+    2.5,
+    gc.releaseResources
+  );
 });
