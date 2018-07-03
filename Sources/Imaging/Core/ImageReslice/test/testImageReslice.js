@@ -1,6 +1,7 @@
 import test from 'tape-catch';
 import testUtils from 'vtk.js/Sources/Testing/testUtils';
 
+import { mat4 } from 'gl-matrix';
 import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
 import vtkImageMapper from 'vtk.js/Sources/Rendering/Core/ImageMapper';
@@ -36,7 +37,8 @@ test.onlyIfWebGL('Test vtkImageReslice Rendering', (t) => {
   renderer.setBackground(0.32, 0.34, 0.43);
 
   const imageData = gc.registerResource(vtkImageData.newInstance());
-  imageData.setSpacing(0.1, 0.1, 0.1);
+  const s = 0.1;
+  imageData.setSpacing(s, s, s);
   imageData.setExtent(0, 127, 0, 127, 0, 127);
   const dims = [128, 128, 128];
 
@@ -68,11 +70,30 @@ test.onlyIfWebGL('Test vtkImageReslice Rendering', (t) => {
 
   const imageReslice = gc.registerResource(vtkImageReslice.newInstance());
   imageReslice.setInputData(imageData);
+  imageReslice.setOutputDimensionality(2);
+  const axes = mat4.create();
+  // mat4.translate(axes, axes, [dims[0] / 2, dims[1] / 2, dims[2] / 2]);
+  mat4.rotateX(axes, axes, 45 * Math.PI / 180);
+  // const transposedAxes = mat4.create();
+  // mat4.transpose(transposedAxes, axes);
+  // mat4.rotateY(axes, axes, 10 * Math.PI / 180);
+  // mat4.rotateZ(axes, axes, 60 * Math.PI / 180);
+  // mat4.translate(axes, axes, [-dims[0] / 2, -dims[1] / 2, -dims[2] / 2]);
+  imageReslice.setResliceAxes(axes);
+  imageReslice.setBorder(true);
+  // imageReslice.setOutputOrigin([
+  //   dims[0] * s / 2,
+  //   dims[1] * s / 2,
+  //   dims[2] * s / 2,
+  // ]);
 
   const resliceMapper = gc.registerResource(vtkImageMapper.newInstance());
   resliceMapper.setInputConnection(imageReslice.getOutputPort());
   const resliceActor = gc.registerResource(vtkImageSlice.newInstance());
   resliceActor.setMapper(resliceMapper);
+  resliceActor.setUserMatrix(axes);
+  // resliceMapper.setKSlice(dims[2] / 2 - 1);
+  resliceMapper.setKSlice(0);
   renderer.addActor(resliceActor);
 
   // now create something to view it, in this case webgl

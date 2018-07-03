@@ -38,8 +38,8 @@ function vtkAbstractImageInterpolator(publicAPI, model) {
       Math.max(supportSize[0], supportSize[1]),
       supportSize[2]
     );
-    const minBound = Number.MIN_VALUE + kernelSize / 2;
-    const maxBound = Number.MAX_VALUE - kernelSize / 2;
+    const minBound = Number.MIN_SAFE_INTEGER + kernelSize / 2;
+    const maxBound = Number.MAX_SAFE_INTEGER - kernelSize / 2;
     for (let i = 0; i < 3; ++i) {
       const newTol = Math.max(
         0.5 * (model.extent[2 * i] === model.extent[2 * i + 1]),
@@ -73,7 +73,7 @@ function vtkAbstractImageInterpolator(publicAPI, model) {
     model.interpolationInfo.pointer = inPtr.subarray(component * dataSize);
 
     model.interpolationInfo.scalarType = model.scalars.dataType;
-    model.interpolationInfo.dataTypeSize = model.scalars.getElementComponentSize();
+    model.interpolationInfo.dataTypeSize = 1; // model.scalars.getElementComponentSize();
     model.interpolationInfo.numberOfComponents = publicAPI.computeNumberOfComponents(
       ncomp
     );

@@ -85,9 +85,10 @@ function vtkImageInterpolator(publicAPI, model) {
         break;
     }
 
+    const startId = inIdX0 * inInc[0] + inIdY0 * inInc[1] + inIdZ0 * inInc[2];
     const inPtr = interpolationInfo.pointer.subarray(
-      inIdX0 * inInc[0] + inIdY0 * inInc[1] + inIdZ0 * inInc[2],
-      numscalars
+      startId,
+      startId + numscalars
     );
     value.set(inPtr, 0);
   };
@@ -166,12 +167,12 @@ function vtkImageInterpolator(publicAPI, model) {
       // set k to the row for which the element in column j is nonzero,
       // and set matrow to the elements of that row
 
-      let k = -1;
-      let matrow = null;
-      do {
-        ++k;
-        matrow = matrix.slice(k * 4, k * 4 + 4);
-      } while (k < 3 && matrix[4 * j] === 0);
+      let k;
+      for (k = 0; k < 3; ++k) {
+        if (matrix[4 * j + k] !== 0) {
+          break;
+        }
+      }
 
       // get the extents
       clipExt[2 * j] = outExt[2 * j];
@@ -189,7 +190,10 @@ function vtkImageInterpolator(publicAPI, model) {
       step = step < inCount ? step : inCount;
 
       // if output pixels lie exactly on top of the input pixels
-      if (Number.isInteger(matrow[j]) && Number.isInteger(matrow[k])) {
+      if (
+        Number.isInteger(matrix[4 * j + k]) &&
+        Number.isInteger(matrix[4 * k + k])
+      ) {
         step = 1;
       }
 

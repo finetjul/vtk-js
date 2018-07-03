@@ -4,14 +4,17 @@ import macro from 'vtk.js/Sources/macro';
 import vtkDataArray from 'vtk.js/Sources/Common/Core/DataArray';
 import { VtkDataTypes } from 'vtk.js/Sources/Common/Core/DataArray/Constants';
 import vtkImageData from 'vtk.js/Sources/Common/DataModel/ImageData';
+import vtkImageInterpolator from 'vtk.js/Sources/Imaging/Core/ImageInterpolator';
+import vtkImagePointDataIterator from 'vtk.js/Sources/Imaging/Core/ImagePointDataIterator';
 import {
   ImageBorderMode,
   InterpolationMode,
+} from 'vtk.js/Sources/Imaging/Core/AbstractImageInterpolator/Constants';
+import {
+  vtkInterpolationMathFloor,
   vtkInterpolationMathRound,
   vtkInterpolationMathClamp,
-} from 'vtk.js/Sources/Imaging/Core/AbstractImageInterpolator/Constants';
-import vtkImageInterpolator from 'vtk.js/Sources/Imaging/Core/ImageInterpolator';
-import vtkImagePointDataIterator from 'vtk.js/Sources/Imaging/Core/ImagePointDataIterator';
+} from 'vtk.js/Sources/Imaging/Core/AbstractImageInterpolator/InterpolationInfo';
 import SlabMode from './Constants';
 
 const { vtkErrorMacro, vtkDebugMacro } = macro;
@@ -58,9 +61,9 @@ function vtkImageReslice(publicAPI, model) {
     mat4.invert(imatrix, matrix);
 
     const inCenter = [
-      origin[0] + 0.5 * dims[0] * inSpacing[0],
-      origin[1] + 0.5 * dims[0] * inSpacing[0],
-      origin[0] + 0.5 * dims[0] * inSpacing[0],
+      origin[0] + 0.5 * (inWholeExt[0] + inWholeExt[1]) * inSpacing[0],
+      origin[1] + 0.5 * (inWholeExt[2] + inWholeExt[3]) * inSpacing[1],
+      origin[2] + 0.5 * (inWholeExt[4] + inWholeExt[5]) * inSpacing[0],
     ];
 
     for (let i = 0; i < 3; i++) {
@@ -72,8 +75,8 @@ function vtkImageReslice(publicAPI, model) {
       if (model.transformInputSampling) {
         let r = 0.0;
         for (let j = 0; j < 3; j++) {
-          c += imatrix[4 * i + j] * (inCenter[j] - matrix[4 * j + 3]);
-          const tmp = matrix[4 * j + i] * matrix[4 * j + i];
+          c += imatrix[4 * j + i] * (inCenter[j] - matrix[4 * 3 + j]);
+          const tmp = matrix[4 * i + j] * matrix[4 * i + j];
           s += tmp * Math.abs(inSpacing[j]);
           d +=
             tmp *
@@ -92,7 +95,7 @@ function vtkImageReslice(publicAPI, model) {
         e = inWholeExt[2 * i];
       }
 
-      if (model.computeOutputSpacing) {
+      if (model.outputSpacing == null) {
         outSpacing[i] = s;
       } else {
         outSpacing[i] = model.outputSpacing[i];
@@ -101,7 +104,7 @@ function vtkImageReslice(publicAPI, model) {
       if (i >= model.outputDimensionality) {
         outWholeExt[2 * i] = 0;
         outWholeExt[2 * i + 1] = 0;
-      } else if (model.computeOutputExtent) {
+      } else if (model.outputExtent == null) {
         if (model.autoCropOutput) {
           // d = maxBounds[2*i+1] - maxBounds[2*i];
         }
@@ -116,7 +119,7 @@ function vtkImageReslice(publicAPI, model) {
 
       if (i >= model.outputDimensionality) {
         outOrigin[i] = 0;
-      } else if (model.computeOutputOrigin) {
+      } else if (model.outputOrigin == null) {
         if (model.autoCropOutput) {
           // set origin so edge of extent is edge of bounds
           // outOrigin[i] = maxBounds[2*i] - outWholeExt[2*i]*outSpacing[i];
@@ -156,6 +159,36 @@ function vtkImageReslice(publicAPI, model) {
     output.getPointData().setScalars(outScalars);
 
     publicAPI.getIndexMatrix(input, output);
+
+    let interpolationMode = model.interpolationMode;
+    model.usePermuteExecute = false;
+    if (model.optimization) {
+      if (
+        optimizedTransform == null &&
+        model.slabSliceSpacingFraction === 1.0 &&
+        model.interpolator.isSeparable() &&
+        publicAPI.isPermutationMatrix(indexMatrix)
+      ) {
+        model.usePermuteExecute = true;
+        if (publicAPI.canUseNearestNeighbor(indexMatrix, outWholeExt)) {
+          interpolationMode = InterpolationMode.NEAREST;
+        }
+      }
+    }
+    model.interpolator.setInterpolationMode(interpolationMode);
+
+    let borderMode = ImageBorderMode.CLAMP;
+    borderMode = model.wrap ? ImageBorderMode.REPEAT : borderMode;
+    borderMode = model.mirror ? ImageBorderMode.MIRROR : borderMode;
+    model.interpolator.setBorderMode(borderMode);
+
+    const mintol = 7.62939453125e-6;
+    const maxtol = 2.0 * 2147483647;
+    let tol = 0.5 * model.border;
+    tol = borderMode === ImageBorderMode.CLAMP ? tol : maxtol;
+    tol = tol > mintol ? tol : mintol;
+    model.interpolator.setTolerance(tol);
+
     model.interpolator.initialize(input);
 
     publicAPI.vtkImageResliceExecute(input, output);
@@ -184,19 +217,11 @@ function vtkImageReslice(publicAPI, model) {
     const slabSampleSpacing = model.slabSliceSpacingFraction;
 
     // check for perspective transformation
-    let perspective = 0;
-    if (
-      newmat[4 * 3 + 0] !== 0 ||
-      newmat[4 * 3 + 1] !== 0 ||
-      newmat[4 * 3 + 2] !== 0 ||
-      newmat[4 * 3 + 3] !== 1
-    ) {
-      perspective = 1;
-    }
+    const perspective = publicAPI.isPerspectiveMatrix(newmat);
 
     // extra scalar info for nearest-neighbor optimization
     let inPtr = inScalars.getData();
-    const inputScalarSize = inScalars.getElementComponentSize(); // inScalars.getDataTypeSize();
+    const inputScalarSize = 1; // inScalars.getElementComponentSize(); // inScalars.getDataTypeSize();
     const inputScalarType = inScalars.dataType;
     const inComponents = inScalars.getNumberOfComponents(); // interpolator.GetNumberOfComponents();
     const componentOffset = model.interpolator.getComponentOffset();
@@ -223,8 +248,7 @@ function vtkImageReslice(publicAPI, model) {
       model.scalarShift !== 0.0 || model.scalarScale !== 1.0;
 
     // is nearest neighbor optimization possible?
-    let optimizeNearest = 0;
-    if (
+    const optimizeNearest =
       interpolationMode === InterpolationMode.NEAREST &&
       borderMode === ImageBorderMode.CLAMP &&
       !(
@@ -235,11 +259,8 @@ function vtkImageReslice(publicAPI, model) {
       ) &&
       inputScalarType === outScalars.dataType &&
       fullSize === inScalars.getNumberOfTuples() &&
-      model.border === 1 &&
-      nsamples <= 1
-    ) {
-      optimizeNearest = 1;
-    }
+      model.border === true &&
+      nsamples <= 1;
 
     // get pixel information
     const scalarType = outScalars.getDataType();
@@ -253,10 +274,10 @@ function vtkImageReslice(publicAPI, model) {
     const zAxis = [0, 0, 0, 0];
     const origin = [0, 0, 0, 0];
     for (let i = 0; i < 4; ++i) {
-      xAxis[i] = newmat[4 * i + 0];
-      yAxis[i] = newmat[4 * i + 1];
-      zAxis[i] = newmat[4 * i + 2];
-      origin[i] = newmat[4 * i + 3];
+      xAxis[i] = newmat[4 * 0 + i];
+      yAxis[i] = newmat[4 * 1 + i];
+      zAxis[i] = newmat[4 * 2 + i];
+      origin[i] = newmat[4 * 3 + i];
     }
 
     // get the input origin and spacing for conversion purposes
@@ -547,7 +568,7 @@ function vtkImageReslice(publicAPI, model) {
                   break;
                 }
               }
-              outPtrTmp.subarray(bytesPerPixel);
+              outPtrTmp = outPtrTmp.subarray(bytesPerPixel);
             } else if (isInBounds) {
               // leaving input bounds
               break;
@@ -598,14 +619,7 @@ function vtkImageReslice(publicAPI, model) {
     }
 
     // check to see if we have an identity matrix
-    let isIdentity = true;
-    for (let i = 0; i < 4; ++i) {
-      for (let j = 0; j < 4; ++j) {
-        if ((i === j ? 1.0 : 0.0) !== transform[i + j * 4]) {
-          isIdentity = false;
-        }
-      }
-    }
+    let isIdentity = publicAPI.isIdentityMatrix(transform);
 
     // the outMatrix takes OutputData indices to OutputData coordinates,
     // the inMatrix takes InputData coordinates to InputData indices
@@ -616,25 +630,25 @@ function vtkImageReslice(publicAPI, model) {
         (optimizedTransform !== null &&
           (outSpacing[i] !== 1.0 || outOrigin[i] !== 0.0))
       ) {
-        isIdentity = 0;
+        isIdentity = false;
       }
       inMatrix[4 * i + i] = 1.0 / inSpacing[i];
-      inMatrix[4 * i + 3] = -inOrigin[i] / inSpacing[i];
+      inMatrix[4 * 3 + i] = -inOrigin[i] / inSpacing[i];
       outMatrix[4 * i + i] = outSpacing[i];
-      outMatrix[4 * i + 3] = outOrigin[i];
+      outMatrix[4 * 3 + i] = outOrigin[i];
     }
 
     if (!isIdentity) {
       // transform.PreMultiply();
       // transform.Concatenate(outMatrix);
-      mat4.multiply(transform, outMatrix, transform);
+      mat4.multiply(transform, transform, outMatrix);
 
       // the optimizedTransform requires data coords, not
       // index coords, as its input
       if (optimizedTransform == null) {
         // transform->PostMultiply();
         // transform->Concatenate(inMatrix);
-        mat4.multiply(transform, transform, inMatrix);
+        mat4.multiply(transform, inMatrix, transform);
       }
     }
 
@@ -760,6 +774,73 @@ function vtkImageReslice(publicAPI, model) {
       floatData[i] = (floatData[i] + scalarShift) * scalarScale;
     }
   };
+
+  publicAPI.isPermutationMatrix = (matrix) => {
+    for (let i = 0; i < 3; i++) {
+      if (matrix[4 * i + 3] !== 0) {
+        return false;
+      }
+    }
+    if (matrix[4 * 3 + 3] !== 1) {
+      return false;
+    }
+    for (let j = 0; j < 3; j++) {
+      let k = 0;
+      for (let i = 0; i < 3; i++) {
+        if (matrix[4 * j + i] !== 0) {
+          k++;
+        }
+      }
+      if (k !== 1) {
+        return 0;
+      }
+    }
+    return 1;
+  };
+
+  publicAPI.isIdentityMatrix = (matrix) => {
+    for (let i = 0; i < 4; ++i) {
+      for (let j = 0; j < 4; ++j) {
+        if ((i === j ? 1.0 : 0.0) !== matrix[4 * j + i]) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  publicAPI.isPerspectiveMatrix = (matrix) =>
+    matrix[4 * 0 + 3] !== 0 ||
+    matrix[4 * 1 + 3] !== 0 ||
+    matrix[4 * 2 + 3] !== 0 ||
+    matrix[4 * 3 + 3] !== 1;
+
+  publicAPI.canUseNearestNeighbor = (matrix, outExt) => {
+    // loop through dimensions
+    for (let i = 0; i < 3; i++) {
+      let j;
+      for (j = 0; j < 3; j++) {
+        if (matrix[4 * j + i] !== 0) {
+          break;
+        }
+      }
+      if (j >= 3) {
+        return 0;
+      }
+      let x = matrix[4 * j + i];
+      let y = matrix[4 * 3 + i];
+      if (outExt[2 * j] === outExt[2 * j + 1]) {
+        y += x * outExt[2 * i];
+        x = 0;
+      }
+      const fx = vtkInterpolationMathFloor(x, 0).error;
+      const fy = vtkInterpolationMathFloor(y, 0).error;
+      if (fx !== 0 || fy !== 0) {
+        return 0;
+      }
+    }
+    return 1;
+  };
 }
 
 // ----------------------------------------------------------------------------
@@ -767,28 +848,28 @@ function vtkImageReslice(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
-  resliceAxes: null,
-  resliceTransform: null,
   transformInputSampling: true,
-  backgroundColor: [128, 0, 0, 0],
-  computeOutputSpacing: true,
-  computeOutputExtent: true,
-  computeOutputOrigin: true,
-  outputSpacing: null,
-  outputExtent: null,
-  outputOrigin: null,
-  outputDimensionality: 3,
   autoCropOutput: false,
+  outputDimensionality: 3,
+  outputSpacing: null, // automatically computed if null
+  outputOrigin: null, // automatically computed if null
+  outputExtent: null, // automatically computed if null
+  wrap: false, // don't wrap
+  mirror: false, // don't mirror
+  border: true, // apply a border
+  interpolationMode: InterpolationMode.NEAREST, // only NEAREST supported so far
   slabMode: SlabMode.MIN,
   slabTrapezoidIntegration: false,
   slabNumberOfSlices: 1,
   slabSliceSpacingFraction: 1,
-  scalarShift: 0,
+  optimization: false, // not supported yet
+  scalarShift: 0, // for rescaling the data
   scalarScale: 1,
-  wrap: false,
-  mirror: false,
-  border: false,
+  backgroundColor: [0, 0, 0, 0],
+  resliceAxes: null,
+  resliceTransform: null,
   interpolator: vtkImageInterpolator.newInstance(),
+  usePermuteExecute: false, // no supported yet
 };
 
 // ----------------------------------------------------------------------------
@@ -805,6 +886,12 @@ export function extend(publicAPI, model, initialValues = {}) {
   macro.setGet(publicAPI, model, [
     'resliceAxes',
     'outputDimensionality',
+    'outputOrigin',
+    'outputSpacing',
+    'outputExtent',
+    'wrap',
+    'mirror',
+    'border',
     'backgroundColor',
   ]);
 
