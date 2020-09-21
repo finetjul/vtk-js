@@ -106,9 +106,7 @@ function vtkCubeHandleRepresentation(publicAPI, model) {
 // Object factory
 // ----------------------------------------------------------------------------
 
-const DEFAULT_VALUES = {
-  // defaultScale: 0.1,
-};
+const DEFAULT_VALUES = {};
 
 // ----------------------------------------------------------------------------
 

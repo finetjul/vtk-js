@@ -1,19 +1,25 @@
+import { distance2BetweenPoints } from 'vtk.js/Sources/Common/Core/Math';
+import stateGenerator from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/state';
 import macro from 'vtk.js/Sources/macro';
 import vtkAbstractWidgetFactory from 'vtk.js/Sources/Widgets/Core/AbstractWidgetFactory';
 import vtkPlanePointManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
-// import vtkLineHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/LineHandleRepresentation';
 import vtkSphereHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/SphereHandleRepresentation';
 import vtkCubeHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/CubeHandleRepresentation';
 import vtkConeHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/ConeHandleRepresentation';
-import { distance2BetweenPoints } from 'vtk.js/Sources/Common/Core/Math';
 import widgetBehavior from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/behavior';
-import stateGenerator from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/state';
-import { ViewTypes } from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
 import vtkSVGCustomLandmarkRepresentation from 'vtk.js/Sources/Widgets/SVG/SVGCustomLandmarkRepresentation';
 import vtkPolyLineRepresentation from 'vtk.js/Sources/Widgets/Representations/PolyLineRepresentation';
+import { ViewTypes } from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
 // ----------------------------------------------------------------------------
 // Factory
 // ----------------------------------------------------------------------------
+
+const handleRepresentationType = {
+  SPHERE: 'sphere',
+  CUBE: 'cube',
+  CONE: 'cone',
+  // ARROW:	'arrow',
+};
 
 function vtkLineWidget(publicAPI, model) {
   model.classHierarchy.push('vtkLineWidget');
@@ -25,13 +31,13 @@ function vtkLineWidget(publicAPI, model) {
   const handleRepresentation = [0, 0, 0];
   function detectHandleShape() {
     switch (model.shapeHandle1) {
-      case 'sphere':
+      case handleRepresentationType.SPHERE:
         handleRepresentation[0] = vtkSphereHandleRepresentation;
         break;
-      case 'cube':
+      case handleRepresentationType.CUBE:
         handleRepresentation[0] = vtkCubeHandleRepresentation;
         break;
-      case 'cone':
+      case handleRepresentationType.CONE:
         handleRepresentation[0] = vtkConeHandleRepresentation;
         break;
       default:
@@ -39,19 +45,20 @@ function vtkLineWidget(publicAPI, model) {
         break;
     }
     switch (model.shapeHandle2) {
-      case 'sphere':
+      case handleRepresentationType.SPHERE:
         handleRepresentation[1] = vtkSphereHandleRepresentation;
         break;
-      case 'cube':
+      case handleRepresentationType.CUBE:
         handleRepresentation[1] = vtkCubeHandleRepresentation;
         break;
-      case 'cone':
+      case handleRepresentationType.CONE:
         handleRepresentation[1] = vtkConeHandleRepresentation;
         break;
       default:
         handleRepresentation[1] = vtkSphereHandleRepresentation;
         break;
     }
+
     handleRepresentation[2] = vtkSVGCustomLandmarkRepresentation;
   }
 
@@ -85,11 +92,6 @@ function vtkLineWidget(publicAPI, model) {
             initialValues: { scaleInPixels: true },
           },
           { builder: handleRepresentation[2], labels: ['text'] },
-          //    {
-          //     builder: vtkLineHandleRepresentation,
-          //    labels: ['handle1', 'handle2', 'moveHandle'],
-          //  initialValues: { scaleInPixels: true },
-          // },
           {
             builder: vtkPolyLineRepresentation,
             labels: ['handle1', 'handle2', 'moveHandle'],
@@ -132,13 +134,12 @@ function vtkLineWidget(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
-  // manipulator: null,
-  shapeHandle1: 'cone',
-  shapeHandle2: 'cone',
+  shapeHandle1: handleRepresentationType.CONE,
+  shapeHandle2: handleRepresentationType.SPHERE,
   textInput: 'DEFAULT_VALUES textInput',
-  offset: 0.2,
-  offsetDir: 2,
-  lineDir: 0.1,
+  offset: 0.1,
+  offsetDir: 1,
+  lineDir: 0.9,
 };
 
 // ----------------------------------------------------------------------------

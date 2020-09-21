@@ -62,7 +62,4 @@ document.querySelector('button').addEventListener('click', () => {
 // globals
 // -----------------------------------------------------------
 
-// !!! A test de rerender une foiss que j ai update les default values !!!
-// setTimeout(()=> {console.log(widget); widget.setShapeHandle1("cube");}, 5000);
-
 global.widget = widget;

@@ -6,7 +6,11 @@ export default function widgetBehavior(publicAPI, model) {
   model.classHierarchy.push('vtkDistanceWidgetProp');
   let isDragging = null;
   const direction = [0, 0, 0];
-
+  const coneBehavior = {
+    CONE_HANDLE1_ALONE: 3,
+    CONE_HANDLE2: 2,
+    CONE_HANDLE1: 1,
+  };
   // --------------------------------------------------------------------------
   // Display 2D
   // --------------------------------------------------------------------------
@@ -25,7 +29,7 @@ export default function widgetBehavior(publicAPI, model) {
   function updateConeDirection(behavior, callData) {
     let bv = behavior;
     if (bv === 3) {
-      const test = publicAPI.computeWorldToDisplay(
+      const WorldMousePos = publicAPI.computeWorldToDisplay(
         model.renderer,
         model.widgetState.getHandle1List()[0].getOrigin()[0],
         model.widgetState.getHandle1List()[0].getOrigin()[1],
@@ -35,7 +39,7 @@ export default function widgetBehavior(publicAPI, model) {
         model.renderer,
         callData.position.x,
         callData.position.y,
-        test[2]
+        WorldMousePos[2]
       );
       for (let i = 0; i < 3; i++) {
         direction[i] =
@@ -45,43 +49,43 @@ export default function widgetBehavior(publicAPI, model) {
     } else {
       const modifier = bv === 1 ? 1 : -1;
       bv -= 1;
+      const handle1Pos = model.widgetState.getHandle1List()[0].getOrigin();
+      const handle2Pos = model.widgetState.getHandle2List()[0].getOrigin();
+
       for (let i = 0; i < 3; i++)
-        direction[i] =
-          (model.widgetState.getHandle1List()[0].getOrigin()[i] -
-            model.widgetState.getHandle2List()[0].getOrigin()[i]) *
-          modifier;
+        direction[i] = (handle1Pos[i] - handle2Pos[i]) * modifier;
     }
     model.representations[bv].getGlyph().setDirection(direction);
   }
 
   function setConeDirection() {
     if (model.shapeHandle1 === 'cone') {
-      updateConeDirection(1);
+      updateConeDirection(coneBehavior.CONE_HANDLE1);
     }
     if (model.shapeHandle2 === 'cone') {
-      updateConeDirection(2);
+      updateConeDirection(coneBehavior.CONE_HANDLE2);
     }
   }
 
-  function setTextPosition(ofset, ofsetDir, linePosition) {
+  function setTextPosition() {
     const vector = [0, 0, 0];
-    let oD = ofsetDir;
-    let lp = linePosition;
-    let os = ofset;
-    if (linePosition < 0 || linePosition > 1) {
+    const handle1WorldPos = model.widgetState.getHandle1List()[0].getOrigin();
+    const handle2WorldPos = model.widgetState.getHandle1List()[0].getOrigin();
+    const os = model.offsetDir === 0 ? 0 : model.offset;
+    if (model.lineDir < 0 || model.lineDir > 1) {
       console.log(
         'Line position should always be between 0 and 1 to remain on the line'
       );
-    } else lp = 1 - lp;
-    if (ofsetDir !== 0 && ofsetDir !== 1 && ofsetDir !== 2)
-      console.log('wrong ofset value');
-    if (oD === 1) oD *= -1;
-    if (oD === 0) os = 0;
+    }
+    const lineDir = 1 - model.lineDir;
+    if (model.offsetDir !== 0 && model.offsetDir !== 1 && model.offsetDir !== 2)
+      console.log('wrong offset value');
+    //    if (model.offsetDir === 1) {
+    //      const oD = model.offsetDir * -1;
+    //    }
     for (let i = 0; i < 3; i++) {
       vector[i] =
-        (model.widgetState.getHandle1List()[0].getOrigin()[i] -
-          model.widgetState.getHandle2List()[0].getOrigin()[i]) *
-          lp +
+        (handle1WorldPos[i] - handle2WorldPos[i]) * lineDir +
         model.widgetState.getHandle2List()[0].getOrigin()[i];
     }
     vector[0] += os;
@@ -100,6 +104,8 @@ export default function widgetBehavior(publicAPI, model) {
   // --------------------------------------------------------------------------
 
   publicAPI.handleLeftButtonPress = (e) => {
+    const nbHandle1 = model.widgetState.getHandle1List().length;
+    const nbHandle2 = model.widgetState.getHandle2List().length;
     if (
       !model.activeState ||
       !model.activeState.getActive() ||
@@ -111,7 +117,7 @@ export default function widgetBehavior(publicAPI, model) {
 
     if (
       model.activeState === model.widgetState.getMoveHandle() &&
-      model.widgetState.getHandle1List().length === 0
+      nbHandle1 === 0
     ) {
       const moveHandle = model.widgetState.getMoveHandle();
       const newHandle = model.widgetState.addHandle1();
@@ -120,8 +126,8 @@ export default function widgetBehavior(publicAPI, model) {
       newHandle.setScale1(moveHandle.getScale1());
     } else if (
       model.activeState === model.widgetState.getMoveHandle() &&
-      model.widgetState.getHandle1List().length === 1 &&
-      model.widgetState.getHandle2List().length === 0
+      nbHandle1 === 1 &&
+      nbHandle2 === 0
     ) {
       const moveHandle = model.widgetState.getMoveHandle();
       const newHandle = model.widgetState.addHandle2();
@@ -149,12 +155,10 @@ export default function widgetBehavior(publicAPI, model) {
   // --------------------------------------------------------------------------
 
   publicAPI.handleMouseMove = (callData) => {
-    if (
-      model.hasFocus &&
+    const nbHandle =
       model.widgetState.getHandle1List().length +
-        model.widgetState.getHandle2List().length ===
-        MAX_POINTS
-    ) {
+      model.widgetState.getHandle2List().length;
+    if (model.hasFocus && nbHandle === MAX_POINTS) {
       publicAPI.loseFocus();
       return macro.VOID;
     }
@@ -181,13 +185,8 @@ export default function widgetBehavior(publicAPI, model) {
           if (model.shapeHandle1 === 'cone' || model.shapeHandle2 === 'cone')
             setConeDirection();
           updateTextPosition();
-        } else if (
-          model.widgetState.getHandle1List().length +
-            model.widgetState.getHandle2List().length ===
-            1 &&
-          model.shapeHandle1 === 'cone'
-        ) {
-          updateConeDirection(3, callData);
+        } else if (nbHandle === 1 && model.shapeHandle1 === 'cone') {
+          updateConeDirection(coneBehavior.CONE_HANDLE1_ALONE, callData);
         }
 
         return macro.EVENT_ABORT;
@@ -210,8 +209,6 @@ export default function widgetBehavior(publicAPI, model) {
     } else if (model.activeState !== model.widgetState.getMoveHandle()) {
       model.widgetState.deactivate();
     }
-    // here need to implement an active state for my line body
-    // to move the complete line
     if (
       (model.hasFocus && !model.activeState) ||
       (model.activeState && !model.activeState.getActive())
@@ -228,10 +225,10 @@ export default function widgetBehavior(publicAPI, model) {
   // --------------------------------------------------------------------------
 
   publicAPI.grabFocus = () => {
-    const handleNb =
+    const nbHandles =
       model.widgetState.getHandle1List().length +
       model.widgetState.getHandle2List().length;
-    if (!model.hasFocus && handleNb < MAX_POINTS) {
+    if (!model.hasFocus && nbHandles < MAX_POINTS) {
       model.activeState = model.widgetState.getMoveHandle();
       model.activeState.activate();
       model.activeState.setVisible(true);
