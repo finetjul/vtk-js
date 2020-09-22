@@ -3,7 +3,7 @@ import macro from 'vtk.js/Sources/macro';
 const MAX_POINTS = 2;
 
 export default function widgetBehavior(publicAPI, model) {
-  model.classHierarchy.push('vtkDistanceWidgetProp');
+  model.classHierarchy.push('vtkLineWidgetProp');
   let isDragging = null;
   const direction = [0, 0, 0];
   const coneBehavior = {
@@ -26,14 +26,15 @@ export default function widgetBehavior(publicAPI, model) {
     return e.altKey || e.controlKey || e.shiftKey;
   }
 
-  function updateConeDirection(behavior, callData) {
+  function updateHandleDirection(behavior, callData) {
     let bv = behavior;
     if (bv === 3) {
+      const handle1Pos = model.widgetState.getHandle1List()[0].getOrigin();
       const WorldMousePos = publicAPI.computeWorldToDisplay(
         model.renderer,
-        model.widgetState.getHandle1List()[0].getOrigin()[0],
-        model.widgetState.getHandle1List()[0].getOrigin()[1],
-        model.widgetState.getHandle1List()[0].getOrigin()[2]
+        handle1Pos[0],
+        handle1Pos[1],
+        handle1Pos[2]
       );
       const mousePos = publicAPI.computeDisplayToWorld(
         model.renderer,
@@ -58,12 +59,12 @@ export default function widgetBehavior(publicAPI, model) {
     model.representations[bv].getGlyph().setDirection(direction);
   }
 
-  function setConeDirection() {
-    if (model.shapeHandle1 === 'cone') {
-      updateConeDirection(coneBehavior.CONE_HANDLE1);
+  function setHandleDirection() {
+    if (model.shapeHandle1 === 'cone' || model.shapeHandle1 === 'arrow') {
+      updateHandleDirection(coneBehavior.CONE_HANDLE1);
     }
-    if (model.shapeHandle2 === 'cone') {
-      updateConeDirection(coneBehavior.CONE_HANDLE2);
+    if (model.shapeHandle2 === 'cone' || model.shapeHandle2 === 'arrow') {
+      updateHandleDirection(coneBehavior.CONE_HANDLE2);
     }
   }
 
@@ -80,9 +81,6 @@ export default function widgetBehavior(publicAPI, model) {
     const lineDir = 1 - model.lineDir;
     if (model.offsetDir !== 0 && model.offsetDir !== 1 && model.offsetDir !== 2)
       console.log('wrong offset value');
-    //    if (model.offsetDir === 1) {
-    //      const oD = model.offsetDir * -1;
-    //    }
     for (let i = 0; i < 3; i++) {
       vector[i] =
         (handle1WorldPos[i] - handle2WorldPos[i]) * lineDir +
@@ -134,7 +132,7 @@ export default function widgetBehavior(publicAPI, model) {
       newHandle.setOrigin(...moveHandle.getOrigin());
       newHandle.setColor(moveHandle.getColor());
       newHandle.setScale1(moveHandle.getScale1());
-      setConeDirection();
+      setHandleDirection();
       const textHandle = model.widgetState.addText();
       textHandle.setText(model.textInput);
       textHandle.setOrigin(
@@ -182,17 +180,24 @@ export default function widgetBehavior(publicAPI, model) {
         model.activeState.setOrigin(worldCoords);
         publicAPI.invokeInteractionEvent();
         if (isDragging === true) {
-          if (model.shapeHandle1 === 'cone' || model.shapeHandle2 === 'cone')
-            setConeDirection();
+          if (
+            model.shapeHandle1 === 'cone' ||
+            model.shapeHandle2 === 'cone' ||
+            model.shapeHandle1 === 'arrow' ||
+            model.shapeHandle2 === 'arrow'
+          )
+            setHandleDirection();
           updateTextPosition();
-        } else if (nbHandle === 1 && model.shapeHandle1 === 'cone') {
-          updateConeDirection(coneBehavior.CONE_HANDLE1_ALONE, callData);
+        } else if (
+          nbHandle === 1 &&
+          (model.shapeHandle1 === 'cone' || model.shapeHandle2 === 'arrow')
+        ) {
+          updateHandleDirection(coneBehavior.CONE_HANDLE1_ALONE, callData);
         }
 
         return macro.EVENT_ABORT;
       }
     }
-
     return macro.VOID;
   };
 

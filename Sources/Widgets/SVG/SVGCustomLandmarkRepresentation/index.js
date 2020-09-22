@@ -13,11 +13,11 @@ function vtkSVGCustomLandmarkRepresentation(publicAPI, model) {
 
   publicAPI.render = () => {
     const list = publicAPI.getRepresentationStates();
-
     const coords = [];
-    for (let i = 0; i < list.length; i++) {
-      coords.push(list[i].getOrigin());
-    }
+
+    list.forEach((representation) => {
+      coords.push(representation.getOrigin());
+    });
 
     return publicAPI.worldPointsToPixelSpace(coords).then((pixelSpace) => {
       const points2d = pixelSpace.coords;
