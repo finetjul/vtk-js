@@ -4,6 +4,7 @@ import macro from 'vtk.js/Sources/macro';
 import stateGenerator from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/state';
 import vtkAbstractWidgetFactory from 'vtk.js/Sources/Widgets/Core/AbstractWidgetFactory';
 import vtkArrowHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/ArrowHandleRepresentation';
+import vtkGhostArrowHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/GhostArrowHandleRepresentation';
 import vtkPlanePointManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
 import vtkSphereHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/SphereHandleRepresentation';
 import vtkCubeHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/CubeHandleRepresentation';
@@ -40,6 +41,9 @@ function vtkLineWidget(publicAPI, model) {
   shapeToRepresentation[
     handleRepresentationType.ARROW
   ] = vtkArrowHandleRepresentation;
+  shapeToRepresentation[
+    handleRepresentationType.GHOSTARROW
+  ] = vtkGhostArrowHandleRepresentation;
 
   function detectHandleShape() {
     handleRepresentation[0] = shapeToRepresentation[model.shapeHandle1];
@@ -129,8 +133,8 @@ function vtkLineWidget(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
-  shapeHandle1: handleRepresentationType.CONE,
-  shapeHandle2: handleRepresentationType.CONE,
+  shapeHandle1: handleRepresentationType.GHOSTARROW,
+  shapeHandle2: handleRepresentationType.GHOSTARROW,
   textInput: 'DEFAULT_VALUES textInput',
   offset: 0.1,
   offsetDir: 1,

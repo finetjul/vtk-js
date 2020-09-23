@@ -1,6 +1,6 @@
 import vtkFullScreenRenderWindow from 'vtk.js/Sources/Rendering/Misc/FullScreenRenderWindow';
 import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
-import vtkTriangleFilter from 'vtk.js/Sources/Filters/General/TriangleFilter';
+import vtkLineFilter from 'vtk.js/Sources/Filters/General/LineFilter';
 import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 
 import vtkStar from './star';
@@ -19,13 +19,13 @@ const renderWindow = fullScreenRenderer.getRenderWindow();
 // Example code
 // ----------------------------------------------------------------------------
 
-const triangleSource = vtkStar.newInstance();
-const triangleFilter = vtkTriangleFilter.newInstance();
+const lineSource = vtkStar.newInstance();
+const lineFilter = vtkLineFilter.newInstance();
 const mapper = vtkMapper.newInstance();
 const actor = vtkActor.newInstance();
 
-triangleFilter.setInputConnection(triangleSource.getOutputPort());
-mapper.setInputConnection(triangleFilter.getOutputPort());
+lineFilter.setInputConnection(lineSource.getOutputPort());
+mapper.setInputConnection(lineFilter.getOutputPort());
 actor.setMapper(mapper);
 
 renderer.addActor(actor);

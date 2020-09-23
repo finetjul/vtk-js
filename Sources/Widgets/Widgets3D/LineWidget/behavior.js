@@ -59,13 +59,15 @@ export default function widgetBehavior(publicAPI, model) {
   function setHandleDirection() {
     if (
       model.shapeHandle1 === handleRepresentationType.CONE ||
-      model.shapeHandle1 === handleRepresentationType.ARROW
+      model.shapeHandle1 === handleRepresentationType.ARROW ||
+      model.shapeHandle1 === handleRepresentationType.GHOSTARROW
     ) {
       updateHandleDirection(handleBehavior.HANDLE1);
     }
     if (
       model.shapeHandle2 === handleRepresentationType.CONE ||
-      model.shapeHandle2 === handleRepresentationType.ARROW
+      model.shapeHandle2 === handleRepresentationType.ARROW ||
+      model.shapeHandle2 === handleRepresentationType.GHOSTARROW
     ) {
       updateHandleDirection(handleBehavior.HANDLE2);
     }
@@ -187,14 +189,17 @@ export default function widgetBehavior(publicAPI, model) {
             model.shapeHandle1 === handleRepresentationType.CONE ||
             model.shapeHandle2 === handleRepresentationType.CONE ||
             model.shapeHandle1 === handleRepresentationType.ARROW ||
-            model.shapeHandle2 === handleRepresentationType.ARROW
+            model.shapeHandle2 === handleRepresentationType.ARROW ||
+            model.shapeHandle1 === handleRepresentationType.GHOSTARROW ||
+            model.shapeHandle2 === handleRepresentationType.GHOSTARROW
           )
             setHandleDirection();
           updateTextPosition();
         } else if (
           nbHandles === 1 &&
           (model.shapeHandle1 === handleRepresentationType.CONE ||
-            model.shapeHandle2 === handleRepresentationType.ARROW)
+            model.shapeHandle2 === handleRepresentationType.ARROW ||
+            model.shapeHandle2 === handleRepresentationType.GHOSTARROW)
         ) {
           updateHandleDirection(handleBehavior.HANDLE1_ALONE, callData);
         }

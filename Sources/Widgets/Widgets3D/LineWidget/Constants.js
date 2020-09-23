@@ -15,6 +15,7 @@ export const handleRepresentationType = {
   CUBE: 'cube',
   CONE: 'cone',
   ARROW: 'arrow',
+  GHOSTARROW: 'ghostarrow',
 };
 
 export default {

@@ -5,17 +5,17 @@ import vtkGlyph3DMapper from 'vtk.js/Sources/Rendering/Core/Glyph3DMapper';
 import vtkHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/HandleRepresentation';
 import vtkPixelSpaceCallbackMapper from 'vtk.js/Sources/Rendering/Core/PixelSpaceCallbackMapper';
 import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
-import vtkSphereSource from 'vtk.js/Sources/Filters/Sources/SphereSource';
+import vtkGhostArrowSource from 'vtk.js/Sources/Filters/Sources/GhostArrowSource';
 
 import { ScalarMode } from 'vtk.js/Sources/Rendering/Core/Mapper/Constants';
 
 // ----------------------------------------------------------------------------
-// vtkArrowHandlePolylineRepresentation methods
+// vtkGhostArrowHandleRepresentation methods
 // ----------------------------------------------------------------------------
 
-function vtkArrowHandlePolylineRepresentation(publicAPI, model) {
+function vtkGhostArrowHandleRepresentation(publicAPI, model) {
   // Set our className
-  model.classHierarchy.push('vtkArrowHandlePolylineRepresentation');
+  model.classHierarchy.push('vtkGhostArrowHandleRepresentation');
 
   // --------------------------------------------------------------------------
   // Internal polydata dataset
@@ -56,7 +56,7 @@ function vtkArrowHandlePolylineRepresentation(publicAPI, model) {
     scalarMode: ScalarMode.USE_POINT_FIELD_DATA,
   });
   model.actor = vtkActor.newInstance();
-  model.glyph = vtkSphereSource.newInstance({
+  model.glyph = vtkGhostArrowSource.newInstance({
     phiResolution: model.glyphResolution,
     thetaResolution: model.glyphResolution,
   });
@@ -150,7 +150,6 @@ function vtkArrowHandlePolylineRepresentation(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
-//  glyphResolution: 8,
   defaultScale: 1,
 };
 
@@ -163,14 +162,14 @@ export function extend(publicAPI, model, initialValues = {}) {
   macro.get(publicAPI, model, ['glyph', 'mapper', 'actor']);
 
   // Object specific methods
-  vtkArrowHandlePolylineRepresentation(publicAPI, model);
+  vtkGhostArrowHandleRepresentation(publicAPI, model);
 }
 
 // ----------------------------------------------------------------------------
 
 export const newInstance = macro.newInstance(
   extend,
-  'vtkArrowHandlePolylineRepresentation'
+  'vtkGhostArrowHandleRepresentation'
 );
 
 // ----------------------------------------------------------------------------
