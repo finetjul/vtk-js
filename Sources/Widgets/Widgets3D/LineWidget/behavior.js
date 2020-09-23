@@ -1,16 +1,13 @@
+import Constants from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/Constants';
 import macro from 'vtk.js/Sources/macro';
 
 const MAX_POINTS = 2;
 
+const { direction, handleBehavior, handleRepresentationType } = Constants;
+
 export default function widgetBehavior(publicAPI, model) {
   model.classHierarchy.push('vtkLineWidgetProp');
   let isDragging = null;
-  const direction = [0, 0, 0];
-  const coneBehavior = {
-    CONE_HANDLE1_ALONE: 3,
-    CONE_HANDLE2: 2,
-    CONE_HANDLE1: 1,
-  };
   // --------------------------------------------------------------------------
   // Display 2D
   // --------------------------------------------------------------------------
@@ -28,7 +25,7 @@ export default function widgetBehavior(publicAPI, model) {
 
   function updateHandleDirection(behavior, callData) {
     let bv = behavior;
-    if (bv === 3) {
+    if (bv === handleBehavior.HANDLE1_ALONE) {
       const handle1Pos = model.widgetState.getHandle1List()[0].getOrigin();
       const WorldMousePos = publicAPI.computeWorldToDisplay(
         model.renderer,
@@ -60,18 +57,24 @@ export default function widgetBehavior(publicAPI, model) {
   }
 
   function setHandleDirection() {
-    if (model.shapeHandle1 === 'cone' || model.shapeHandle1 === 'arrow') {
-      updateHandleDirection(coneBehavior.CONE_HANDLE1);
+    if (
+      model.shapeHandle1 === handleRepresentationType.CONE ||
+      model.shapeHandle1 === handleRepresentationType.ARROW
+    ) {
+      updateHandleDirection(handleBehavior.HANDLE1);
     }
-    if (model.shapeHandle2 === 'cone' || model.shapeHandle2 === 'arrow') {
-      updateHandleDirection(coneBehavior.CONE_HANDLE2);
+    if (
+      model.shapeHandle2 === handleRepresentationType.CONE ||
+      model.shapeHandle2 === handleRepresentationType.ARROW
+    ) {
+      updateHandleDirection(handleBehavior.HANDLE2);
     }
   }
 
-  function setTextPosition() {
+  function calculateTextPosition() {
     const vector = [0, 0, 0];
     const handle1WorldPos = model.widgetState.getHandle1List()[0].getOrigin();
-    const handle2WorldPos = model.widgetState.getHandle1List()[0].getOrigin();
+    const handle2WorldPos = model.widgetState.getHandle2List()[0].getOrigin();
     const os = model.offsetDir === 0 ? 0 : model.offset;
     if (model.lineDir < 0 || model.lineDir > 1) {
       console.log(
@@ -93,7 +96,7 @@ export default function widgetBehavior(publicAPI, model) {
   function updateTextPosition() {
     const obj = model.widgetState.getTextList()[0];
     obj.setOrigin(
-      setTextPosition(model.offset, model.offsetDir, model.lineDir)
+      calculateTextPosition(model.offset, model.offsetDir, model.lineDir)
     );
   }
 
@@ -136,7 +139,7 @@ export default function widgetBehavior(publicAPI, model) {
       const textHandle = model.widgetState.addText();
       textHandle.setText(model.textInput);
       textHandle.setOrigin(
-        setTextPosition(model.offset, model.offsetDir, model.lineDir)
+        calculateTextPosition(model.offset, model.offsetDir, model.lineDir)
       );
     } else {
       isDragging = true;
@@ -153,10 +156,10 @@ export default function widgetBehavior(publicAPI, model) {
   // --------------------------------------------------------------------------
 
   publicAPI.handleMouseMove = (callData) => {
-    const nbHandle =
+    const nbHandles =
       model.widgetState.getHandle1List().length +
       model.widgetState.getHandle2List().length;
-    if (model.hasFocus && nbHandle === MAX_POINTS) {
+    if (model.hasFocus && nbHandles === MAX_POINTS) {
       publicAPI.loseFocus();
       return macro.VOID;
     }
@@ -181,18 +184,19 @@ export default function widgetBehavior(publicAPI, model) {
         publicAPI.invokeInteractionEvent();
         if (isDragging === true) {
           if (
-            model.shapeHandle1 === 'cone' ||
-            model.shapeHandle2 === 'cone' ||
-            model.shapeHandle1 === 'arrow' ||
-            model.shapeHandle2 === 'arrow'
+            model.shapeHandle1 === handleRepresentationType.CONE ||
+            model.shapeHandle2 === handleRepresentationType.CONE ||
+            model.shapeHandle1 === handleRepresentationType.ARROW ||
+            model.shapeHandle2 === handleRepresentationType.ARROW
           )
             setHandleDirection();
           updateTextPosition();
         } else if (
-          nbHandle === 1 &&
-          (model.shapeHandle1 === 'cone' || model.shapeHandle2 === 'arrow')
+          nbHandles === 1 &&
+          (model.shapeHandle1 === handleRepresentationType.CONE ||
+            model.shapeHandle2 === handleRepresentationType.ARROW)
         ) {
-          updateHandleDirection(coneBehavior.CONE_HANDLE1_ALONE, callData);
+          updateHandleDirection(handleBehavior.HANDLE1_ALONE, callData);
         }
 
         return macro.EVENT_ABORT;

@@ -19,12 +19,12 @@ const renderWindow = fullScreenRenderer.getRenderWindow();
 // Example code
 // ----------------------------------------------------------------------------
 
-const TriangleSource = vtkStar.newInstance();
+const triangleSource = vtkStar.newInstance();
 const triangleFilter = vtkTrianleFilter.newInstance();
 const mapper = vtkMapper.newInstance();
 const actor = vtkActor.newInstance();
 
-triangleFilter.setInputConnection(TriangleSource.getOutputPort());
+triangleFilter.setInputConnection(triangleSource.getOutputPort());
 mapper.setInputConnection(triangleFilter.getOutputPort());
 actor.setMapper(mapper);
 

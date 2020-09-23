@@ -3,12 +3,12 @@ import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
 import vtkMatrixBuilder from 'vtk.js/Sources/Common/Core/MatrixBuilder';
 
 // ----------------------------------------------------------------------------
-// vtkCustomTriangle methods
+// vtkTriangleSource methods
 // ----------------------------------------------------------------------------
 
-function vtkCustomTriangle(publicAPI, model) {
+function vtkTriangleSource(publicAPI, model) {
   // Set our classname
-  model.classHierarchy.push('vtkCustomTriangle');
+  model.classHierarchy.push('vtkTriangleSource');
 
   publicAPI.requestData = (inData, outData) => {
     const dataset = vtkPolyData.newInstance();
@@ -69,12 +69,12 @@ export function extend(publicAPI, model, initialValues = {}) {
   macro.setGetArray(publicAPI, model, ['center', 'direction'], 3);
   macro.algo(publicAPI, model, 0, 1);
 
-  vtkCustomTriangle(publicAPI, model);
+  vtkTriangleSource(publicAPI, model);
 }
 
 // ----------------------------------------------------------------------------
 
-export const newInstance = macro.newInstance(extend, 'vtkCustomTriangle');
+export const newInstance = macro.newInstance(extend, 'vtkTriangleSource');
 
 // ----------------------------------------------------------------------------
 

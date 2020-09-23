@@ -1,26 +1,26 @@
+import Constants from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/Constants';
 import { distance2BetweenPoints } from 'vtk.js/Sources/Common/Core/Math';
-import stateGenerator from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/state';
 import macro from 'vtk.js/Sources/macro';
+import stateGenerator from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/state';
 import vtkAbstractWidgetFactory from 'vtk.js/Sources/Widgets/Core/AbstractWidgetFactory';
 import vtkArrowHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/ArrowHandleRepresentation';
 import vtkPlanePointManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
 import vtkSphereHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/SphereHandleRepresentation';
 import vtkCubeHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/CubeHandleRepresentation';
 import vtkConeHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/ConeHandleRepresentation';
-import widgetBehavior from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/behavior';
 import vtkSVGCustomLandmarkRepresentation from 'vtk.js/Sources/Widgets/SVG/SVGCustomLandmarkRepresentation';
 import vtkPolyLineRepresentation from 'vtk.js/Sources/Widgets/Representations/PolyLineRepresentation';
+import widgetBehavior from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/behavior';
 import { ViewTypes } from 'vtk.js/Sources/Widgets/Core/WidgetManager/Constants';
 // ----------------------------------------------------------------------------
 // Factory
 // ----------------------------------------------------------------------------
 
-const handleRepresentationType = {
-  SPHERE: 'sphere',
-  CUBE: 'cube',
-  CONE: 'cone',
-  ARROW: 'arrow',
-};
+const {
+  handleRepresentationType,
+  handleRepresentation,
+  shapeToRepresentation,
+} = Constants;
 
 function vtkLineWidget(publicAPI, model) {
   model.classHierarchy.push('vtkLineWidget');
@@ -28,44 +28,28 @@ function vtkLineWidget(publicAPI, model) {
   // --- Widget Requirement ---------------------------------------------------
 
   // custom handles set in default values
+  shapeToRepresentation[
+    handleRepresentationType.SPHERE
+  ] = vtkSphereHandleRepresentation;
+  shapeToRepresentation[
+    handleRepresentationType.CUBE
+  ] = vtkCubeHandleRepresentation;
+  shapeToRepresentation[
+    handleRepresentationType.CONE
+  ] = vtkConeHandleRepresentation;
+  shapeToRepresentation[
+    handleRepresentationType.ARROW
+  ] = vtkArrowHandleRepresentation;
 
-  const handleRepresentation = [0, 0, 0];
   function detectHandleShape() {
-    switch (model.shapeHandle1) {
-      case handleRepresentationType.SPHERE:
-        handleRepresentation[0] = vtkSphereHandleRepresentation;
-        break;
-      case handleRepresentationType.CUBE:
-        handleRepresentation[0] = vtkCubeHandleRepresentation;
-        break;
-      case handleRepresentationType.CONE:
-        handleRepresentation[0] = vtkConeHandleRepresentation;
-        break;
-      case handleRepresentationType.ARROW:
-        handleRepresentation[0] = vtkArrowHandleRepresentation;
-        break;
-      default:
-        handleRepresentation[0] = vtkSphereHandleRepresentation;
-        break;
+    handleRepresentation[0] = shapeToRepresentation[model.shapeHandle1];
+    if (!handleRepresentation[0]) {
+      handleRepresentation[0] = vtkSphereHandleRepresentation;
     }
-    switch (model.shapeHandle2) {
-      case handleRepresentationType.SPHERE:
-        handleRepresentation[1] = vtkSphereHandleRepresentation;
-        break;
-      case handleRepresentationType.CUBE:
-        handleRepresentation[1] = vtkCubeHandleRepresentation;
-        break;
-      case handleRepresentationType.CONE:
-        handleRepresentation[1] = vtkConeHandleRepresentation;
-        break;
-      case handleRepresentationType.ARROW:
-        handleRepresentation[1] = vtkArrowHandleRepresentation;
-        break;
-      default:
-        handleRepresentation[1] = vtkArrowHandleRepresentation;
-        break;
+    handleRepresentation[1] = shapeToRepresentation[model.shapeHandle2];
+    if (!handleRepresentation[1]) {
+      handleRepresentation[1] = vtkSphereHandleRepresentation;
     }
-
     handleRepresentation[2] = vtkSVGCustomLandmarkRepresentation;
   }
 
@@ -111,10 +95,10 @@ function vtkLineWidget(publicAPI, model) {
   // --- Public methods -------------------------------------------------------
 
   publicAPI.getDistance = () => {
-    const handlesNB =
+    const nbHandles =
       model.widgetState.getHandle1List().length +
       model.widgetState.getHandle2List().length;
-    if (handlesNB !== 2) {
+    if (nbHandles !== 2) {
       return 0;
     }
     return Math.sqrt(
@@ -145,8 +129,8 @@ function vtkLineWidget(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
-  shapeHandle1: handleRepresentationType.ARROW,
-  shapeHandle2: handleRepresentationType.ARROW,
+  shapeHandle1: handleRepresentationType.CONE,
+  shapeHandle2: handleRepresentationType.CONE,
   textInput: 'DEFAULT_VALUES textInput',
   offset: 0.1,
   offsetDir: 1,

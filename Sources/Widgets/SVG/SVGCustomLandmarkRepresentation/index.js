@@ -38,8 +38,8 @@ function vtkSVGCustomLandmarkRepresentation(publicAPI, model) {
         text.setAttribute('y', y);
         text.textContent = publicAPI
           .getInputData()
-          .getAllNestedStates()[3]
-          .getText();
+          .getAllNestedStates()[3] // this behavior is unique to the line widget
+          .getText(); // to select the properties of the text
         root.appendChild(text);
       }
 
