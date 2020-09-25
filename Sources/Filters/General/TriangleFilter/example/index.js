@@ -3,7 +3,7 @@ import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
 import vtkTriangleFilter from 'vtk.js/Sources/Filters/General/TriangleFilter';
 import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 
-import vtkStar from './6pointsArrowHead';
+import vtkStar from './star';
 
 // ----------------------------------------------------------------------------
 // Standard rendering code setup
@@ -26,6 +26,7 @@ const actor = vtkActor.newInstance();
 
 triangleFilter.setInputConnection(triangleSource.getOutputPort());
 mapper.setInputConnection(triangleFilter.getOutputPort());
+// mapper.setInputConnection(triangleSource.getOutputPort());
 actor.setMapper(mapper);
 
 renderer.addActor(actor);

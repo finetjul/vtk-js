@@ -13,9 +13,7 @@ function vtk6pointsArrowHead(publicAPI, model) {
   publicAPI.requestData = (inData, outData) => {
     const dataset = vtkPolyData.newInstance();
 
-    const points = new Float32Array(6 * 3);
-    const edges = new Uint32Array(8);
-    let cells = new Uint32Array(4 * 4);
+    const points = new window[model.pointType](6 * 3);
 
     points[0] = (model.width / 2) * -1 - model.thickness;
     points[1] = model.height / 4;
@@ -40,27 +38,10 @@ function vtk6pointsArrowHead(publicAPI, model) {
     points[15] = (model.width / 3) * -1;
     points[16] = model.height * 0.1 - model.thickness;
     points[17] = 0.0;
-    /*  
-// only one triangle
-		cells = [
-			3, 0, 1, 4,
-			3, 1, 2, 4,
-			3, 2, 3, 4,
-			3, 0, 4, 5,
-		];
-*/
-    // strange shape
-    cells = [3, 1, 2, 4, 3, 2, 3, 4, 3, 0, 4, 5, 3, 0, 1, 4];
 
-    edges[0] = 7;
-    edges[7] = 0;
-
-    edges[1] = 0;
-    edges[2] = 1;
-    edges[3] = 2;
-    edges[4] = 3;
-    edges[5] = 4;
-    edges[6] = 5;
+    // eslint-disable-next-line
+    // const cells = Uint8Array.from([3, 0, 1, 5, 3, 1, 4, 5, 3, 1, 2, 4, 3, 2, 3, 4]);
+    const cells = Uint8Array.from([6, 0, 1, 2, 3, 4, 5]);
 
     vtkMatrixBuilder
       .buildFromRadian()
@@ -70,9 +51,6 @@ function vtk6pointsArrowHead(publicAPI, model) {
 
     dataset.getPoints().setData(points, 3);
     dataset.getPolys().setData(cells, 1);
-    // dataset.getPolys().setData(edges, 1);
-
-    // console.log(dataset);
 
     outData[0] = dataset;
   };
