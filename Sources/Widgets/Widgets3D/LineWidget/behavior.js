@@ -56,18 +56,35 @@ export default function widgetBehavior(publicAPI, model) {
     model.representations[bv].getGlyph().setDirection(direction);
   }
 
+  function checkHandleTypeForDirection() {
+    if (
+      model.shapeHandle1 === handleRepresentationType.CONE ||
+      model.shapeHandle1 === handleRepresentationType.ARROWHEAD3 ||
+      model.shapeHandle1 === handleRepresentationType.ARROWHEAD4 ||
+      model.shapeHandle1 === handleRepresentationType.ARROWHEAD6 ||
+      model.shapeHandle2 === handleRepresentationType.CONE ||
+      model.shapeHandle2 === handleRepresentationType.ARROWHEAD3 ||
+      model.shapeHandle2 === handleRepresentationType.ARROWHEAD4 ||
+      model.shapeHandle2 === handleRepresentationType.ARROWHEAD6
+    )
+      return 1;
+    return 0;
+  }
+
   function setHandleDirection() {
     if (
       model.shapeHandle1 === handleRepresentationType.CONE ||
-      model.shapeHandle1 === handleRepresentationType.ARROW ||
-      model.shapeHandle1 === handleRepresentationType.GHOSTARROW
+      model.shapeHandle1 === handleRepresentationType.ARROWHEAD3 ||
+      model.shapeHandle1 === handleRepresentationType.ARROWHEAD4 ||
+      model.shapeHandle1 === handleRepresentationType.ARROWHEAD6
     ) {
       updateHandleDirection(handleBehavior.HANDLE1);
     }
     if (
       model.shapeHandle2 === handleRepresentationType.CONE ||
-      model.shapeHandle2 === handleRepresentationType.ARROW ||
-      model.shapeHandle2 === handleRepresentationType.GHOSTARROW
+      model.shapeHandle2 === handleRepresentationType.ARROWHEAD3 ||
+      model.shapeHandle2 === handleRepresentationType.ARROWHEAD4 ||
+      model.shapeHandle2 === handleRepresentationType.ARROWHEAD6
     ) {
       updateHandleDirection(handleBehavior.HANDLE2);
     }
@@ -185,21 +202,14 @@ export default function widgetBehavior(publicAPI, model) {
         model.activeState.setOrigin(worldCoords);
         publicAPI.invokeInteractionEvent();
         if (isDragging === true) {
-          if (
-            model.shapeHandle1 === handleRepresentationType.CONE ||
-            model.shapeHandle2 === handleRepresentationType.CONE ||
-            model.shapeHandle1 === handleRepresentationType.ARROW ||
-            model.shapeHandle2 === handleRepresentationType.ARROW ||
-            model.shapeHandle1 === handleRepresentationType.GHOSTARROW ||
-            model.shapeHandle2 === handleRepresentationType.GHOSTARROW
-          )
-            setHandleDirection();
+          if (checkHandleTypeForDirection()) setHandleDirection();
           updateTextPosition();
         } else if (
           nbHandles === 1 &&
           (model.shapeHandle1 === handleRepresentationType.CONE ||
-            model.shapeHandle2 === handleRepresentationType.ARROW ||
-            model.shapeHandle2 === handleRepresentationType.GHOSTARROW)
+            model.shapeHandle1 === handleRepresentationType.ARROWHEAD3 ||
+            model.shapeHandle1 === handleRepresentationType.ARROWHEAD4 ||
+            model.shapeHandle1 === handleRepresentationType.ARROWHEAD6)
         ) {
           updateHandleDirection(handleBehavior.HANDLE1_ALONE, callData);
         }

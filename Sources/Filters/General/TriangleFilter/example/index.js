@@ -3,7 +3,7 @@ import vtkActor from 'vtk.js/Sources/Rendering/Core/Actor';
 import vtkTriangleFilter from 'vtk.js/Sources/Filters/General/TriangleFilter';
 import vtkMapper from 'vtk.js/Sources/Rendering/Core/Mapper';
 
-import vtkStar from './star';
+import vtkStar from './6pointsArrowHead';
 
 // ----------------------------------------------------------------------------
 // Standard rendering code setup

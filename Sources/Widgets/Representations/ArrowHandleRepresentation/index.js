@@ -5,9 +5,12 @@ import vtkGlyph3DMapper from 'vtk.js/Sources/Rendering/Core/Glyph3DMapper';
 import vtkHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/HandleRepresentation';
 import vtkPixelSpaceCallbackMapper from 'vtk.js/Sources/Rendering/Core/PixelSpaceCallbackMapper';
 import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
-import vtkTriangleSource from 'vtk.js/Sources/Filters/Sources/TriangleSource';
+import vtkArrowHead2DSource from 'vtk.js/Sources/Filters/Sources/ArrowHead2DSource/';
 
+import Constants from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/Constants';
 import { ScalarMode } from 'vtk.js/Sources/Rendering/Core/Mapper/Constants';
+
+const { handleRepresentationType } = Constants;
 
 // ----------------------------------------------------------------------------
 // vtkArrowHandleRepresentation methods
@@ -38,6 +41,27 @@ function vtkArrowHandleRepresentation(publicAPI, model) {
   model.internalPolyData.getPointData().addArray(model.internalArrays.scale);
   model.internalPolyData.getPointData().addArray(model.internalArrays.color);
 
+  function detectArrowHeadShape() {
+    switch (model.handleType) {
+      case handleRepresentationType.ARROWHEAD3: {
+        const initialValues = { shapeNb: 3 };
+        return vtkArrowHead2DSource.newInstance(initialValues);
+      }
+      case handleRepresentationType.ARROWHEAD4: {
+        const initialValues = { shapeNb: 4 };
+        return vtkArrowHead2DSource.newInstance(initialValues);
+      }
+      case handleRepresentationType.ARROWHEAD6: {
+        const initialValues = { shapeNb: 6 };
+        return vtkArrowHead2DSource.newInstance(initialValues);
+      }
+      default: {
+        const initialValues = { shapeNb: 3 };
+        return vtkArrowHead2DSource.newInstance(initialValues);
+      }
+    }
+  }
+
   // --------------------------------------------------------------------------
   // Generic rendering pipeline
   // --------------------------------------------------------------------------
@@ -56,11 +80,7 @@ function vtkArrowHandleRepresentation(publicAPI, model) {
     scalarMode: ScalarMode.USE_POINT_FIELD_DATA,
   });
   model.actor = vtkActor.newInstance();
-  model.glyph = vtkTriangleSource.newInstance({
-    phiResolution: model.glyphResolution,
-    thetaResolution: model.glyphResolution,
-  });
-
+  model.glyph = detectArrowHeadShape();
   model.mapper.setInputConnection(publicAPI.getOutputPort(), 0);
   model.mapper.setInputConnection(model.glyph.getOutputPort(), 1);
   model.actor.setMapper(model.mapper);
@@ -150,7 +170,6 @@ function vtkArrowHandleRepresentation(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
-  glyphResolution: 8,
   defaultScale: 1,
 };
 

@@ -4,7 +4,6 @@ import macro from 'vtk.js/Sources/macro';
 import stateGenerator from 'vtk.js/Sources/Widgets/Widgets3D/LineWidget/state';
 import vtkAbstractWidgetFactory from 'vtk.js/Sources/Widgets/Core/AbstractWidgetFactory';
 import vtkArrowHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/ArrowHandleRepresentation';
-import vtkGhostArrowHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/GhostArrowHandleRepresentation';
 import vtkPlanePointManipulator from 'vtk.js/Sources/Widgets/Manipulators/PlaneManipulator';
 import vtkSphereHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/SphereHandleRepresentation';
 import vtkCubeHandleRepresentation from 'vtk.js/Sources/Widgets/Representations/CubeHandleRepresentation';
@@ -39,11 +38,14 @@ function vtkLineWidget(publicAPI, model) {
     handleRepresentationType.CONE
   ] = vtkConeHandleRepresentation;
   shapeToRepresentation[
-    handleRepresentationType.ARROW
+    handleRepresentationType.ARROWHEAD3
   ] = vtkArrowHandleRepresentation;
   shapeToRepresentation[
-    handleRepresentationType.GHOSTARROW
-  ] = vtkGhostArrowHandleRepresentation;
+    handleRepresentationType.ARROWHEAD4
+  ] = vtkArrowHandleRepresentation;
+  shapeToRepresentation[
+    handleRepresentationType.ARROWHEAD6
+  ] = vtkArrowHandleRepresentation;
 
   function detectHandleShape() {
     handleRepresentation[0] = shapeToRepresentation[model.shapeHandle1];
@@ -79,12 +81,18 @@ function vtkLineWidget(publicAPI, model) {
           {
             builder: handleRepresentation[0],
             labels: ['handle1'],
-            initialValues: { scaleInPixels: true },
+            initialValues: {
+              scaleInPixels: true, // for scaling handles, optionnal
+              handleType: model.shapeHandle1, // to detect arrow type in ArrowHandleRepresentation, mandatory
+            },
           },
           {
             builder: handleRepresentation[1],
             labels: ['handle2'],
-            initialValues: { scaleInPixels: true },
+            initialValues: {
+              scaleInPixels: true, // for scaling handles, optionnal
+              handleType: model.shapeHandle2, // to detect arrow type in ArrowHandleRepresentation, mandatory
+            },
           },
           { builder: handleRepresentation[2], labels: ['text'] },
           {
@@ -133,8 +141,8 @@ function vtkLineWidget(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
-  shapeHandle1: handleRepresentationType.GHOSTARROW,
-  shapeHandle2: handleRepresentationType.GHOSTARROW,
+  shapeHandle1: handleRepresentationType.ARROWHEAD6,
+  shapeHandle2: handleRepresentationType.ARROWHEAD6,
   textInput: 'DEFAULT_VALUES textInput',
   offset: 0.1,
   offsetDir: 1,

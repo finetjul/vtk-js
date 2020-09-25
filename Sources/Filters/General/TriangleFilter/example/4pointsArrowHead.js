@@ -3,22 +3,23 @@ import vtkPolyData from 'vtk.js/Sources/Common/DataModel/PolyData';
 import vtkMatrixBuilder from 'vtk.js/Sources/Common/Core/MatrixBuilder';
 
 // ----------------------------------------------------------------------------
-// vtkTriangleSource methods
+// vtk4pointsArrowHead methods
 // ----------------------------------------------------------------------------
 
-function vtkTriangleSource(publicAPI, model) {
+function vtk4pointsArrowHead(publicAPI, model) {
   // Set our classname
-  model.classHierarchy.push('vtkTriangleSource');
+  model.classHierarchy.push('vtk4pointsArrowHead');
 
   publicAPI.requestData = (inData, outData) => {
     const dataset = vtkPolyData.newInstance();
 
-    const points = new Float32Array(3 * 3);
-    const edges = new Uint32Array(5);
-    edges[0] = 4;
-    edges[4] = 0;
+    const points = new Float32Array(4 * 3);
+  //  const edges = new Uint32Array(6);
+  //  edges[0] = 5;
+  //  edges[5] = 0;
+			let cells = new Uint32Array(3 * 2);
 
-    points[0] = (model.height / 2) * -1;
+    points[0] = (model.width / 2) * -1;
     points[1] = 0.0;
     points[2] = 0.0;
 
@@ -26,13 +27,24 @@ function vtkTriangleSource(publicAPI, model) {
     points[4] = model.height;
     points[5] = 0.0;
 
-    points[6] = model.height / 2;
+    points[6] = model.width / 2;
     points[7] = 0.0;
     points[8] = 0.0;
 
-    edges[1] = 0;
+    points[9] = 0.0;
+    points[10] = model.height / 3; // thickness a implementer
+    points[11] = 0.0;
+/*    
+		edges[1] = 0;
     edges[2] = 1;
     edges[3] = 2;
+		edges[4] = 3;
+*/
+
+		cells = [
+			3, 0, 1, 3,
+			3, 1, 2, 3,
+		];
 
     vtkMatrixBuilder
       .buildFromRadian()
@@ -41,7 +53,7 @@ function vtkTriangleSource(publicAPI, model) {
       .apply(points);
 
     dataset.getPoints().setData(points, 3);
-    dataset.getPolys().setData(edges, 1);
+    dataset.getPolys().setData(cells, 1);
 
     outData[0] = dataset;
   };
@@ -53,6 +65,8 @@ function vtkTriangleSource(publicAPI, model) {
 
 const DEFAULT_VALUES = {
   height: 1.0,
+  width: 1.0,
+	thickness: 0.0,
   center: [0, 0, 0],
   direction: [0.0, 1.0, 0.0],
   pointType: 'Float32Array',
@@ -63,18 +77,19 @@ const DEFAULT_VALUES = {
 export function extend(publicAPI, model, initialValues = {}) {
   Object.assign(model, DEFAULT_VALUES, initialValues);
 
+	console.log('salut bg');
   // Build VTK API
   macro.obj(publicAPI, model);
-  macro.setGet(publicAPI, model, ['height']);
+  macro.setGet(publicAPI, model, ['height', 'width', 'thickness']);
   macro.setGetArray(publicAPI, model, ['center', 'direction'], 3);
   macro.algo(publicAPI, model, 0, 1);
 
-  vtkTriangleSource(publicAPI, model);
+  vtk4pointsArrowHead(publicAPI, model);
 }
 
 // ----------------------------------------------------------------------------
 
-export const newInstance = macro.newInstance(extend, 'vtkTriangleSource');
+export const newInstance = macro.newInstance(extend, 'vtk4pointsArrowHead');
 
 // ----------------------------------------------------------------------------
 
