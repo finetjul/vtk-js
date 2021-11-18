@@ -2,6 +2,7 @@ import macro from 'vtk.js/Sources/macros';
 import * as vtkMath from 'vtk.js/Sources/Common/Core/Math';
 import Constants from 'vtk.js/Sources/Rendering/Core/VolumeMapper/Constants';
 import vtkAbstractMapper from 'vtk.js/Sources/Rendering/Core/AbstractMapper';
+import vtkSliceHelper from 'vtk.js/Sources/Rendering/Core/VolumeMapper/SliceHelper';
 
 const { BlendMode, FilterMode } = Constants;
 
@@ -162,4 +163,4 @@ export const newInstance = macro.newInstance(extend, 'vtkVolumeMapper');
 
 // ----------------------------------------------------------------------------
 
-export default { newInstance, extend };
+export default { newInstance, extend, vtkSliceHelper };
