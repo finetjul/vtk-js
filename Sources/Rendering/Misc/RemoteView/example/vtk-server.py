@@ -25,11 +25,13 @@ r"""
 """
 
 # import to process args
+import math
 import sys
 import os
 
 # import vtk modules.
 import vtk
+from vtk.util.numpy_support import numpy_to_vtk
 from vtk.web import protocols
 from vtk.web import wslink as vtk_wslink
 from wslink import server
@@ -40,7 +42,21 @@ import argparse
 # Create custom ServerProtocol class to handle clients requests
 # =============================================================================
 
+def create_sphere(size=5, radius=2):
+    import numpy as np
+    from copy import deepcopy
 
+    A = np.zeros((size,size, size))
+
+    x0, y0, z0 = int(np.floor(A.shape[0]/2)), \
+            int(np.floor(A.shape[1]/2)), int(np.floor(A.shape[2]/2))
+
+    for x in range(x0-radius, x0+radius+1):
+        for y in range(y0-radius, y0+radius+1):
+            for z in range(z0-radius, z0+radius+1):
+                deb = radius - math.sqrt((x0-x)*(x0-x) + (y0-y)*(y0-y) + (z0-z)*(z0-z))
+                if (deb)>=0: A[x,y,z] = 255
+    return A
 class _WebCone(vtk_wslink.ServerProtocol):
 
     # Application configuration
@@ -74,14 +90,42 @@ class _WebCone(vtk_wslink.ServerProtocol):
             renderWindowInteractor.SetRenderWindow(renderWindow)
             renderWindowInteractor.GetInteractorStyle().SetCurrentStyleToTrackballCamera()
 
-            cone = vtk.vtkConeSource()
-            mapper = vtk.vtkPolyDataMapper()
-            actor = vtk.vtkActor()
+            size = 300
+            radius = 149
+            np_array = create_sphere(size, radius)
+            vtk_array = numpy_to_vtk(num_array=np_array.ravel(), deep=True, array_type=vtk.VTK_UNSIGNED_CHAR)
 
-            mapper.SetInputConnection(cone.GetOutputPort())
-            actor.SetMapper(mapper)
+            image = vtk.vtkImageData()
+            image.SetDimensions(size, size, size)
+            image.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 1)
+            image.GetPointData().GetScalars().DeepCopy(vtk_array)
 
-            renderer.AddActor(actor)
+            # Create transfer mapping scalar value to opacity.
+            opacity_function = vtk.vtkPiecewiseFunction()
+            opacity_function.AddPoint(0,   0.0)
+            opacity_function.AddPoint(255, 0.9)
+
+            # Create transfer mapping scalar value to color.
+            color_function = vtk.vtkColorTransferFunction()
+            color_function.SetColorSpaceToHSV()
+            color_function.AddHSVPoint(0,   0.0, 0.0, 0.0)
+            color_function.AddHSVPoint(127, 0.0, 0.0, 0.0)
+            color_function.AddHSVPoint(128, 0.0, 0.0, 1.0)
+            color_function.AddHSVPoint(255, 0.0, 0.0, 1.0)
+
+            volume_property = vtk.vtkVolumeProperty()
+            volume_property.SetColor(color_function)
+            volume_property.SetScalarOpacity(opacity_function)
+            volume_property.ShadeOn()
+            volume_property.SetInterpolationTypeToLinear()
+
+            mapper = vtk.vtkSmartVolumeMapper()
+            mapper.SetInputData(image)
+            volume = vtk.vtkVolume()
+            volume.SetMapper(mapper)
+            volume.SetProperty(volume_property)
+
+            renderer.AddVolume(volume)
             renderer.ResetCamera()
             renderWindow.Render()
 
