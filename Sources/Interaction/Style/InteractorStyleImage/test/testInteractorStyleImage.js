@@ -82,4 +82,5 @@ test('Test vtkInteractorStyleImage.setCurrentImageNumber', (t) => {
     imageSlices[3].getProperty()
   );
   t.end();
+  container.removeChild(renderWindowContainer);
 });
