@@ -32,21 +32,21 @@ function vtkSpline3D(publicAPI, model) {
     let work = null;
     let intervals = null;
 
-    if (model.close) {
-      work = new Float32Array(size);
-      if (model.intervals.length === 0) {
-        intervals = new Float32Array(size);
-        for (let i = 0; i < intervals.length; i++) {
-          intervals[i] = i;
-        }
-      } else {
-        intervals = model.intervals;
+    // if (model.close) {
+    work = new Float32Array(size);
+    if (model.intervals.length === 0) {
+      intervals = new Float32Array(size);
+      for (let i = 0; i < intervals.length; i++) {
+        intervals[i] = i;
       }
-
-      spline.computeCloseCoefficients(size, work, intervals, points);
     } else {
-      vtkErrorMacro('Open splines are not supported yet!');
+      intervals = model.intervals;
     }
+
+    spline.computeCloseCoefficients(size, work, intervals, points);
+    // } else {
+    //   vtkErrorMacro('Open splines are not supported yet!');
+    // }
   }
 
   // --------------------------------------------------------------------------

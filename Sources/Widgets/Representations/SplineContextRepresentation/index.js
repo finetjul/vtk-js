@@ -82,13 +82,22 @@ function vtkSplineContextRepresentation(publicAPI, model) {
       return;
     }
 
-    const numVertices = inPoints.length;
-    if (model.close) {
+    let numSegments = inPoints.length;
+
+    let offset = 0;
+    if (!model.close) {
+      --numSegments;
+      // inPoints.push(inPoints[inPoints.length - 1]);
+      // inPoints.push(inPoints[0]);
+      inPoints.unshift(inPoints[0]);
+      inPoints.push(inPoints[inPoints.length - 1]);
+      offset = 1;
+    } else {
       inPoints.push(inPoints[0]);
     }
 
     const spline = vtkSpline3D.newInstance({
-      close: model.close,
+      close: true, // model.close,
       kind: widgetState.getSplineKind(),
       tension: widgetState.getSplineTension(),
       bias: widgetState.getSplineBias(),
@@ -96,15 +105,18 @@ function vtkSplineContextRepresentation(publicAPI, model) {
     });
     spline.computeCoefficients(inPoints);
 
-    const outPoints = new Float32Array(3 * numVertices * model.resolution);
-    const outCells = new Uint32Array(numVertices * model.resolution + 2);
-    outCells[0] = numVertices * model.resolution + 1;
-    outCells[numVertices * model.resolution + 1] = 0;
+    const outPoints = new Float32Array(
+      3 * (numSegments * model.resolution + !model.close)
+    );
+    const outCells = new Uint32Array(
+      1 + numSegments * model.resolution + 1 // model.close
+    );
+    outCells[0] = outCells.length - 1;
 
-    for (let i = 0; i < numVertices; i++) {
+    for (let i = 0; i < numSegments; i++) {
       for (let j = 0; j < model.resolution; j++) {
         const t = j / model.resolution;
-        const point = spline.getPoint(i, t);
+        const point = spline.getPoint(i + offset, t);
 
         outPoints[3 * (i * model.resolution + j) + 0] = point[0];
         outPoints[3 * (i * model.resolution + j) + 1] = point[1];
@@ -113,9 +125,19 @@ function vtkSplineContextRepresentation(publicAPI, model) {
         outCells[i * model.resolution + j + 1] = i * model.resolution + j;
       }
     }
+    if (model.close) {
+      outCells[numSegments * model.resolution + 1] = 0;
+    } else {
+      const lastPointIndex = numSegments * model.resolution;
+      const lastPoint = spline.getPoint(numSegments + offset, 0);
+      outPoints[3 * lastPointIndex + 0] = lastPoint[0];
+      outPoints[3 * lastPointIndex + 1] = lastPoint[1];
+      outPoints[3 * lastPointIndex + 2] = lastPoint[2];
+      outCells[numSegments * model.resolution + 1] = lastPointIndex;
+    }
 
     polydata.getPoints().setData(outPoints);
-    if (model.fill) {
+    if (model.fill && model.close) {
       polydata.getPolys().setData(outCells);
     }
 
@@ -136,9 +158,12 @@ function vtkSplineContextRepresentation(publicAPI, model) {
 
   publicAPI.getSelectedState = (prop, compositeID) => model.state;
 
-  publicAPI.setFill = macro.chain(publicAPI.setFill, (v) =>
-    model.pipelines.area.actor.setVisibility(v)
-  );
+  function updateAreaVisibility() {
+    model.pipelines.area.actor.setVisibility(model.fill && model.close);
+  }
+
+  publicAPI.setFill = macro.chain(publicAPI.setFill, updateAreaVisibility);
+  publicAPI.setClose = macro.chain(publicAPI.setClose, updateAreaVisibility);
   publicAPI.setOutputBorder = macro.chain(publicAPI.setOutputBorder, (v) =>
     model.pipelines.border.actor.setVisibility(v)
   );

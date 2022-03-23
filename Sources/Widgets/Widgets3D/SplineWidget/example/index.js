@@ -114,6 +114,20 @@ const onFreehandDistanceChanged = () => {
 freehandDistanceInput.addEventListener('input', onFreehandDistanceChanged);
 onFreehandDistanceChanged();
 
+const closeCheckBox = document.querySelector('.close');
+const onCloseChanged = () => {
+  widgetRepresentation.setClose(closeCheckBox.checked);
+};
+closeCheckBox.addEventListener('click', onCloseChanged);
+onCloseChanged();
+
+const borderCheckBox = document.querySelector('.border');
+const onBorderChanged = () => {
+  widgetRepresentation.setOutputBorder(borderCheckBox.checked);
+};
+borderCheckBox.addEventListener('click', onBorderChanged);
+onBorderChanged();
+
 const placeWidgetButton = document.querySelector('.placeWidget');
 placeWidgetButton.addEventListener('click', () => {
   widgetRepresentation.reset();
