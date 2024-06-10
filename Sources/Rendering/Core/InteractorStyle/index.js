@@ -55,6 +55,9 @@ function vtkInteractorStyle(publicAPI, model) {
     };
   });
 
+  publicAPI.getRenderer = (callData) =>
+    model.forcedRenderer || callData.pokedRenderer;
+
   //----------------------------------------------------------------------------
   publicAPI.handleKeyPress = (callData) => {
     const rwi = model._interactor;
@@ -62,13 +65,13 @@ function vtkInteractorStyle(publicAPI, model) {
     switch (callData.key) {
       case 'r':
       case 'R':
-        callData.pokedRenderer.resetCamera();
+        publicAPI.getRenderer(callData).resetCamera();
         rwi.render();
         break;
 
       case 'w':
       case 'W':
-        ac = callData.pokedRenderer.getActors();
+        ac = publicAPI.getRenderer(callData).getActors();
         ac.forEach((anActor) => {
           const prop = anActor.getProperty();
           if (prop.setRepresentationToWireframe) {
@@ -80,7 +83,7 @@ function vtkInteractorStyle(publicAPI, model) {
 
       case 's':
       case 'S':
-        ac = callData.pokedRenderer.getActors();
+        ac = publicAPI.getRenderer(callData).getActors();
         ac.forEach((anActor) => {
           const prop = anActor.getProperty();
           if (prop.setRepresentationToSurface) {
@@ -92,7 +95,7 @@ function vtkInteractorStyle(publicAPI, model) {
 
       case 'v':
       case 'V':
-        ac = callData.pokedRenderer.getActors();
+        ac = publicAPI.getRenderer(callData).getActors();
         ac.forEach((anActor) => {
           const prop = anActor.getProperty();
           if (prop.setRepresentationToPoints) {
@@ -113,6 +116,7 @@ function vtkInteractorStyle(publicAPI, model) {
 // ----------------------------------------------------------------------------
 
 const DEFAULT_VALUES = {
+  // forcedRenderer: null
   state: States.IS_NONE,
   handleObservers: 1,
   autoAdjustCameraClippingRange: 1,
@@ -125,6 +129,8 @@ export function extend(publicAPI, model, initialValues = {}) {
 
   // Inheritance
   vtkInteractorObserver.extend(publicAPI, model, initialValues);
+
+  macro.setGet(publicAPI, model, ['forcedRenderer']);
 
   // Object specific methods
   vtkInteractorStyle(publicAPI, model);

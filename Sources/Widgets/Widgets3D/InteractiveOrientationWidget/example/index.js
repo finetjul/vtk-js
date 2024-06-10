@@ -71,6 +71,7 @@ const camera = renderer.getActiveCamera();
 
 const widgetManager = vtkWidgetManager.newInstance();
 widgetManager.setRenderer(orientationWidget.getRenderer());
+renderWindow.getInteractor().getInteractorStyle().setForcedRenderer(renderer);
 
 const widget = vtkInteractiveOrientationWidget.newInstance();
 widget.placeWidget(axes.getBounds());
