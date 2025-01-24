@@ -14,7 +14,7 @@ import { ViewTypes } from '@kitware/vtk.js/Widgets/Core/WidgetManager/Constants'
 import vtkCPRManipulator from '@kitware/vtk.js/Widgets/Manipulators/CPRManipulator';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkFullScreenRenderWindow from '@kitware/vtk.js/Rendering/Misc/FullScreenRenderWindow';
-import vtkHttpDataSetReader from '@kitware/vtk.js/IO/Core/HttpDataSetReader';
+// import vtkHttpDataSetReader from '@kitware/vtk.js/IO/Core/HttpDataSetReader';
 import vtkImageCPRMapper from '@kitware/vtk.js/Rendering/Core/ImageCPRMapper';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 import vtkImageReslice from '@kitware/vtk.js/Imaging/Core/ImageReslice';
@@ -22,17 +22,21 @@ import vtkImageSlice from '@kitware/vtk.js/Rendering/Core/ImageSlice';
 import vtkInteractorStyleImage from '@kitware/vtk.js/Interaction/Style/InteractorStyleImage';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
+import vtkXMLImageDataReader from '@kitware/vtk.js/IO/XML/XMLImageDataReader';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkResliceCursorWidget from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import widgetBehavior from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget/cprBehavior';
+import * as vtkMath from 'vtk.js/Sources/Common/Core/Math';
 
 import controlPanel from './controller.html';
 import aortaJSON from './aorta_centerline.json';
 import spineJSON from './spine_centerline.json';
+import jawJSON from './jaw_centerline.json';
 
-const volumePath = `${__BASE_PATH__}/data/volume/LIDC2.vti`;
-const centerlineJsons = { Aorta: aortaJSON, Spine: spineJSON };
+// const volumePath = `${__BASE_PATH__}/data/volume/LIDC2.vti`;
+const volumePath = `${__BASE_PATH__}/data/volume/resampled.vti`;
+const centerlineJsons = { Jaw: jawJSON, Aorta: aortaJSON, Spine: spineJSON };
 const centerlineKeys = Object.keys(centerlineJsons);
 
 // ----------------------------------------------------------------------------
@@ -111,7 +115,8 @@ resliceActor.setMapper(resliceMapper);
 // Need to fetch the true file name and uncompress it locally
 // ----------------------------------------------------------------------------
 
-const reader = vtkHttpDataSetReader.newInstance({ fetchGzip: true });
+// const reader = vtkHttpDataSetReader.newInstance({ fetchGzip: true });
+const reader = vtkXMLImageDataReader.newInstance();
 
 const centerline = vtkPolyData.newInstance();
 
@@ -237,6 +242,18 @@ function updateDistanceAndDirection() {
   renderWindow.render();
 }
 
+function getPointNormal(cP, i) {
+  if (3 * i === cP.length - 3) {
+    // eslint-disable-next-line no-param-reassign
+    --i;
+  }
+  const p = [cP[3 * i], cP[3 * i + 1], cP[3 * i + 2]];
+  const n = [cP[3 * (i + 1)], cP[3 * (i + 1) + 1], cP[3 * (i + 1) + 2]];
+  const normal = vtkMath.subtract(p, n, []);
+  vtkMath.normalize(normal);
+  return normal;
+}
+
 // The centerline JSON contains positions (vec3) and orientations (mat4)
 let currentCenterlineKey = centerlineKeys[0];
 let currentImage = null;
@@ -259,11 +276,28 @@ function setCenterlineKey(centerlineKey) {
   }
   centerline.getLines().setData(centerlineLines);
 
+  if (centerlineJson.orientation == null) {
+    const firstNormal = getPointNormal(centerlinePoints, 0);
+    const secondNormal = getPointNormal(centerlinePoints, 1);
+    // BiTangent is the same for all the points if:
+    //  - vectors are not colinear
+    //  - points are all in the same plane
+    const tangent = vtkMath.cross(firstNormal, secondNormal, []);
+    vtkMath.normalize(tangent);
+    const orientations = [];
+    for (let i = 0; i < nPoints; ++i) {
+      const normal = getPointNormal(centerlinePoints, i);
+      const bitangent = vtkMath.cross(normal, tangent, []);
+      vtkMath.normalize(bitangent);
+      orientations.push(...tangent, ...bitangent, ...normal);
+    }
+    centerlineJson.orientation = orientations;
+  }
   // Create a rotated basis data array to oriented the CPR
   centerline.getPointData().setTensors(
     vtkDataArray.newInstance({
       name: 'Orientation',
-      numberOfComponents: 16,
+      numberOfComponents: centerlineJson.orientation.length / nPoints,
       values: Float32Array.from(centerlineJson.orientation),
     })
   );
